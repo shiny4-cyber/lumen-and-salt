@@ -3,7 +3,7 @@
 // loses integrity with every cut, and collapses when a cut frees its last piece.
 
 import { WRECK } from './config.js';
-import { rollKind, valueOf } from './salvage.js';
+import { cutTimeOf, rollKind, valueOf } from './salvage.js';
 
 const SHAPES = [
   { id: 'freighter', length: 300, height: 96, ribs: 7 },
@@ -18,7 +18,7 @@ let nextId = 1;
  * Build one wreck at (x, y) for a depth tier. `tier` picks the salvage table and the
  * integrity (how many cuts it survives before it buckles).
  */
-export function createWreck(random, x, y, tier) {
+export function createWreck(random, x, y, tier, table) {
   const shape = random.pick(SHAPES);
   const half = shape.length * 0.5;
   const hull = [];
@@ -52,7 +52,7 @@ export function createWreck(random, x, y, tier) {
   const nodeCount = shape.id === 'liner' ? 4 : shape.id === 'tender' ? 2 : 3;
   const nodes = [];
   for (let index = 0; index < nodeCount; index += 1) {
-    const kind = rollKind(random, tier);
+    const kind = rollKind(random, table);
     nodes.push({
       id: `${nextId}-${index}`,
       kind,
@@ -60,6 +60,7 @@ export function createWreck(random, x, y, tier) {
       colour: kind.colour,
       radius: kind.radius,
       mass: kind.mass,
+      cutTime: cutTimeOf(kind),
       value: valueOf(kind, tier, 0),
       ox: -half * 0.62 + (shape.length * 0.62 * index) / Math.max(1, nodeCount - 1) + random.range(-14, 14),
       oy: random.range(-shape.height * 0.32, shape.height * 0.34),

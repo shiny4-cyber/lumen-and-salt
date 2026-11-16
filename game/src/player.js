@@ -1,7 +1,7 @@
 // The bathyscaphe: ballast, thrust, drag, oxygen and hull. The player's whole control set
 // lands here, and every upgrade the refit screen offers is a number this file reads.
 
-import { OXYGEN, PLAYER, TRENCH } from './config.js';
+import { OXYGEN, PLAYER, PRESSURE, TRENCH } from './config.js';
 import { cargoMass } from './salvage.js';
 import { clamp } from './mathx.js';
 
@@ -26,6 +26,10 @@ export function createPlayer() {
     sinkLevel: 0,
     tetherPull: 0,
     depth: 0,
+    /** Ascent pressure: 0 is a calm rise, 1 is a hard bend. */
+    bend: 0,
+    ascentRate: 0,
+    bending: false,
   };
 }
 
@@ -44,6 +48,9 @@ export function resetPlayerForDive(player, refits) {
   player.hullFlash = 0;
   player.lampOn = true;
   player.depth = 0;
+  player.bend = 0;
+  player.ascentRate = 0;
+  player.bending = false;
 }
 
 /**
@@ -106,6 +113,21 @@ export function stepPlayer(player, dt, intent, cargo, refits) {
   player.depth = Math.max(0, player.y) / TRENCH.pxPerMetre;
   const drain = (OXYGEN.drain + player.depth * OXYGEN.drainPerMetre) * (1 + 0.12 * refits.servo);
   player.oxygen = Math.max(0, player.oxygen - drain * dt);
+
+  // Ascent pressure: venting hard is the fast way up and the way to a bend. Under the safe
+  // rate the body recovers; over it the bend builds and then the hull seams complain.
+  const rise = Math.max(0, -player.vy);
+  player.ascentRate = rise;
+  if (rise > PRESSURE.safeRate) {
+    player.bend = Math.min(1, player.bend + ((rise - PRESSURE.safeRate) / PRESSURE.safeRate) * PRESSURE.bendRate * dt);
+  } else {
+    player.bend = Math.max(0, player.bend - PRESSURE.recoverRate * dt);
+  }
+  player.bending = player.bend > PRESSURE.damageAbove;
+  if (player.bending) {
+    player.hull = Math.max(0, player.hull - PRESSURE.damageRate * (player.bend - PRESSURE.damageAbove) * dt);
+    player.hullFlash = Math.max(player.hullFlash, 0.35);
+  }
   player.mercy = Math.max(0, player.mercy - dt);
   player.hullFlash = Math.max(0, player.hullFlash - dt * 2.4);
 }

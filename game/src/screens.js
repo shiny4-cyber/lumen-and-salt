@@ -107,7 +107,33 @@ export function drawRefit(ctx, world, view) {
   centred(ctx, `deepest this run ${Math.round(world.depthMax)} m   ·   dives ${world.stats.dives}`, VIEW.width / 2, 504, '14px "Consolas", monospace', PALETTE.muted);
   const fitted = REFITS.filter((refit) => (world.refits[refit.id] ?? 0) > 0).map((refit) => `${refit.name.toLowerCase()} ×${world.refits[refit.id]}`);
   if (fitted.length > 0) {
-    centred(ctx, fitted.join('   ·   '), VIEW.width / 2, 534, '13px "Consolas", monospace', PALETTE.bioDim);
+    centred(ctx, fitted.join('   ·   '), VIEW.width / 2, 518, '13px "Consolas", monospace', PALETTE.bioDim);
+  }
+
+  // The dive just ended: what it earned, what it cost, what the yard paid for the contracts.
+  const summary = world.summary;
+  if (summary) {
+    panel(ctx, VIEW.width / 2 - 290, 548, 580, 108, 0.86);
+    centred(ctx, `LAST DIVE ${summary.dive}`, VIEW.width / 2, 574, 'bold 13px "Consolas", monospace', PALETTE.muted);
+    const cells = [
+      ['earned', `$${summary.earned}`],
+      ['tonnage', `${summary.mass} t`],
+      ['lost to hulls', `${summary.lost}`],
+      ['contracts paid', `$${summary.contracts}`],
+    ];
+    cells.forEach(([label, value], index) => {
+      const x = VIEW.width / 2 - 250 + index * 170;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = PALETTE.muted;
+      ctx.font = '11px "Consolas", monospace';
+      ctx.fillText(label, x, 602);
+      ctx.fillStyle = index === 0 ? PALETTE.amberHot : PALETTE.text;
+      ctx.font = 'bold 18px "Consolas", monospace';
+      ctx.fillText(value, x, 628);
+    });
+    ctx.textAlign = 'center';
+    const open = world.contracts.filter((contract) => !contract.done).length;
+    centred(ctx, open === 0 ? 'all three contracts closed' : `${open} contract${open === 1 ? '' : 's'} still open`, VIEW.width / 2, 650, '12px "Consolas", monospace', open === 0 ? PALETTE.bio : PALETTE.bioDim);
   }
 }
 

@@ -162,6 +162,33 @@ def main():
             refit_keys = page.evaluate("() => Object.keys(window.__lumen.world.refits)")
             check("the new refits exist in the run state", all(key in refit_keys for key in ("servo", "deepHull", "sweep")), ",".join(refit_keys))
 
+            # --- sonar, contracts, elite, pressure --------------------------------------
+            page.evaluate("() => { window.__lumen.world.sonar.cooldown = 0; }")
+            page.keyboard.press("KeyQ")
+            advance(0.1)
+            pinged = debug()
+            check("Q fires a sonar ping", pinged["sonar"]["active"] > 0, json.dumps(pinged["sonar"]))
+            check("the ping starts its cooldown", pinged["sonar"]["cooldown"] > 0, json.dumps(pinged["sonar"]))
+            page.keyboard.press("KeyQ")
+            advance(0.1)
+            check("the second ping is refused while cooling", debug()["sonar"]["active"] < pinged["sonar"]["active"], "ping restarted")
+            check("three contracts are on the board", len(pinged["contracts"]) == 3, str(pinged["contracts"]))
+
+            page.evaluate("() => window.__lumen.teleport(700, 5000)")
+            advance(0.2)
+            hollow = debug()
+            check("the third band is the Brine Hollow", hollow["environment"] == "brine-hollow", hollow["environment"])
+            page.evaluate("() => { const w = window.__lumen.world; w.elites = []; w.spawnEliteAt(w.player.x + 260, w.player.y + 120); }")
+            advance(1.2)
+            elite = debug()
+            check("the glassmaw exists in the hollow", elite["elite"] >= 1, str(elite["elite"]))
+
+            page.evaluate("() => { const w = window.__lumen.world; w.currents = []; w.wells = []; w.elites = []; w.player.ballast = 0; w.player.y = 4800; w.player.vy = 0; }")
+            intent(ballast=0.0, thrust=0.0, grapple=False, cut=False)
+            advance(3.2)
+            bent = debug()
+            check("a hard ascent builds a bend", bent["bend"] > 0.05, str(bent["bend"]))
+
             # --- hazard damage -----------------------------------------------------------
             intent(ballast=0.0, grapple=False, cut=False)
             page.evaluate("() => { const w = window.__lumen.world; w.player.mercy = 0; w.player.hull = 100; const l = w.spawnLureAt(w.player.x, w.player.y); l.awake = 4; }")
@@ -181,6 +208,8 @@ def main():
             check("three refits are offered", len(surfaced["offers"]) == 3, str(surfaced["offers"]))
             banked = surfaced["banked"]
             check("the haul is banked on surfacing", banked > 0, str(banked))
+            summary = page.evaluate("() => window.__lumen.world.summary")
+            check("surfacing writes a dive summary", summary is not None and "earned" in summary, json.dumps(summary))
 
             page.keyboard.press("Digit1")
             advance(0.4)

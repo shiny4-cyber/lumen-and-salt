@@ -1,7 +1,7 @@
 // The HUD: oxygen, depth, cargo value, hull, the run clock and the contract total. It reads
 // the world and paints over the scene; it holds no state of its own beyond animation time.
 
-import { CONTRACT_TARGET, DIVE, PALETTE, VIEW } from './config.js';
+import { CONTRACT_TARGET, DIVE, PALETTE, PRESSURE, SONAR, VIEW } from './config.js';
 import { cargoMass, cargoValue } from './salvage.js';
 import { clamp } from './mathx.js';
 
@@ -93,6 +93,52 @@ export function drawHud(ctx, world, view) {
       ctx.fillRect(VIEW.width / 2 - 69, 173, 138 * left, 4);
     }
   }
+
+  // The contract board: three jobs, their live progress, and what each pays.
+  ctx.textAlign = 'left';
+  ctx.fillStyle = PALETTE.muted;
+  ctx.font = '11px "Consolas", monospace';
+  ctx.fillText('YARD CONTRACTS', 26, 206);
+  world.contracts.forEach((contract, index) => {
+    const y = 224 + index * 20;
+    ctx.fillStyle = contract.done ? PALETTE.bio : PALETTE.text;
+    ctx.font = contract.done ? 'bold 12px "Consolas", monospace' : '12px "Consolas", monospace';
+    const value = contract.unit === 'x' ? contract.progress.toFixed(2) : Math.round(contract.progress);
+    const goal = contract.unit === 'x' ? contract.goal.toFixed(2) : Math.round(contract.goal);
+    ctx.fillText(`${contract.done ? '✓' : '·'} ${contract.title}  ${value}/${goal}${contract.unit}`, 26, y);
+    ctx.fillStyle = contract.done ? PALETTE.bioDim : PALETTE.muted;
+    ctx.textAlign = 'right';
+    ctx.fillText(`$${contract.reward}`, 244, y);
+    ctx.textAlign = 'left';
+  });
+
+  // Sonar: ready or cooling, always visible so the ability is not a secret.
+  const sonar = world.sonar;
+  ctx.font = '12px "Consolas", monospace';
+  ctx.fillStyle = sonar.active > 0 ? PALETTE.bio : sonar.cooldown > 0 ? PALETTE.muted : PALETTE.amber;
+  ctx.fillText(sonar.active > 0 ? 'SONAR  pinging' : sonar.cooldown > 0 ? `SONAR  ${sonar.cooldown.toFixed(1)} s` : 'SONAR  Q ready', 26, VIEW.height - 48);
+  ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
+  ctx.fillRect(26, VIEW.height - 42, 140, 6);
+  ctx.fillStyle = sonar.cooldown > 0 ? PALETTE.muted : PALETTE.amber;
+  ctx.fillRect(27, VIEW.height - 41, 138 * (1 - Math.min(1, sonar.cooldown / SONAR.cooldown)), 4);
+
+  // Ascent pressure: the safe rate, the current rate, and a bend warning.
+  const rise = player.ascentRate;
+  const ascentFraction = Math.min(1, rise / (PRESSURE.safeRate * 1.7));
+  ctx.textAlign = 'right';
+  ctx.fillStyle = PALETTE.muted;
+  ctx.font = '11px "Consolas", monospace';
+  ctx.fillText(`ASCENT ${Math.round(rise)} px/s   safe ${PRESSURE.safeRate}`, VIEW.width - 26, 152);
+  ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
+  ctx.fillRect(VIEW.width - 244, 158, 218, 9);
+  ctx.fillStyle = rise > PRESSURE.safeRate ? PALETTE.bad : PALETTE.bio;
+  ctx.fillRect(VIEW.width - 243, 159, 216 * ascentFraction, 7);
+  ctx.fillStyle = PALETTE.muted;
+  ctx.fillRect(VIEW.width - 243 + 216 * (PRESSURE.safeRate / (PRESSURE.safeRate * 1.7)) - 1, 156, 2, 13);
+  ctx.fillStyle = player.bending ? PALETTE.bad : rise > PRESSURE.safeRate ? PALETTE.warn : PALETTE.bio;
+  ctx.font = 'bold 11px "Consolas", monospace';
+  ctx.fillText(player.bending ? 'BEND — ease off' : rise > PRESSURE.safeRate ? 'FAST ASCENT' : 'SAFE', VIEW.width - 26, 182);
+  ctx.textAlign = 'left';
 
   // Tether tension, only while a line is out.
   const hook = world.hook;

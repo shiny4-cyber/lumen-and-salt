@@ -10,9 +10,9 @@
 import { BEST_KEY, MUTE_KEY, STEP } from './config.js';
 import { createRandom } from './random.js';
 import { createWorld } from './world.js';
-import { EVENT_ATTACH, EVENT_COLLAPSE, EVENT_DEEP, EVENT_DEAD, EVENT_FIRE, EVENT_HIT, EVENT_RELEASE, EVENT_SALVAGE, EVENT_SURFACED, EVENT_WON, PHASE_DEAD, PHASE_SURFACED, PHASE_WON } from './world.js';
+import { EVENT_ATTACH, EVENT_BAND, EVENT_BEND, EVENT_CACHE, EVENT_COLLAPSE, EVENT_CONTRACT, EVENT_DEEP, EVENT_DEAD, EVENT_ELITE, EVENT_FIRE, EVENT_HIT, EVENT_RELEASE, EVENT_SALVAGE, EVENT_SONAR, EVENT_SURFACED, EVENT_WON, PHASE_DEAD, PHASE_SURFACED, PHASE_WON } from './world.js';
 import { createRenderer } from './render.js';
-import { ACTION_CHOOSE_1, ACTION_CHOOSE_2, ACTION_CHOOSE_3, ACTION_CONFIRM, ACTION_LAMP, ACTION_MUTE, ACTION_PAUSE, createInput } from './input.js';
+import { ACTION_CHOOSE_1, ACTION_CHOOSE_2, ACTION_CHOOSE_3, ACTION_CONFIRM, ACTION_LAMP, ACTION_MUTE, ACTION_PAUSE, ACTION_SONAR, createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { drawHud } from './hud.js';
 import { SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_REFIT, SCREEN_TITLE, SCREEN_WON, drawGameOver, drawPaused, drawRefit, drawTitle, drawWon } from './screens.js';
@@ -171,6 +171,14 @@ function runGame() {
         audio.play('ui');
         announce(world.player.lampOn ? 'Lamp on.' : 'Lamp off.');
       }
+      if (actions & ACTION_SONAR) {
+        if (world.ping()) {
+          audio.play('sonar');
+          announce('Sonar ping.');
+        } else {
+          audio.play('ui');
+        }
+      }
     } else if (screen === SCREEN_PAUSED && (actions & (ACTION_PAUSE | ACTION_CONFIRM))) {
       screen = SCREEN_PLAY;
       announce('Playing.');
@@ -244,9 +252,22 @@ function runGame() {
       hitStop = 0.07;
       announce(`Hull hit. ${Math.ceil(world.player.hull)} percent left.`);
     }
-    if (result.mask & EVENT_DEEP) {
+    if (result.mask & EVENT_BAND) {
       audio.play('deep');
-      announce('Entering the Black Shelf.');
+      announce(world.environment?.label ?? 'New band.');
+    }
+    if (result.mask & EVENT_CONTRACT) {
+      audio.play('refit');
+    }
+    if (result.mask & EVENT_CACHE) {
+      audio.play('salvage');
+      announce('Spare air pod.');
+    }
+    if (result.mask & EVENT_ELITE) {
+      audio.play('snap');
+    }
+    if (result.mask & EVENT_SONAR) {
+      audio.play('sonar');
     }
     if (result.cutting && Math.random() < 0.25) audio.play('cut');
 
@@ -359,6 +380,12 @@ function runGame() {
       lures: world.lures.length,
       stats: { ...world.stats },
       environment: world.environment?.id ?? 'upper-trench',
+      band: world.band,
+      contracts: world.contracts.map((contract) => ({ id: contract.id, progress: contract.progress, goal: contract.goal, done: contract.done })),
+      sonar: { active: Number(world.sonar.active.toFixed(2)), cooldown: Number(world.sonar.cooldown.toFixed(2)) },
+      elite: world.elites.length,
+      bend: Number(world.player.bend.toFixed(2)),
+      cache: world.cache ? !world.cache.taken : false,
       combo: world.combo.count,
       multiplier: Number(world.combo.multiplier.toFixed(2)),
       vents: world.vents.length,
@@ -381,6 +408,7 @@ function runGame() {
       override = null;
     },
     start: () => startRun(),
+    ping: () => world.ping(),
     chooseRefit: (index) => choose(index),
     press: (action) => handleActions(action),
     teleport: (x, y) => {

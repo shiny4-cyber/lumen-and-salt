@@ -11,7 +11,7 @@ export const STEP = 1 / 60;
 export const TRENCH = {
   width: 1600,
   surfaceY: -120,
-  floorY: 4600,
+  floorY: 7200,
   pxPerMetre: 30,
 };
 
@@ -35,7 +35,7 @@ export const PLAYER = {
 
 export const OXYGEN = {
   drain: 0.55,
-  drainPerMetre: 0.01,
+  drainPerMetre: 0.008,
   /** Surfacing refills the tank; this is the reserve taken on top for a fresh dive. */
   breathOnSurface: 0,
 };
@@ -56,6 +56,7 @@ export const GRAPPLE = {
 
 export const CUT = {
   range: 170,
+  /** The default is the copper coil's cut time; every salvage class sets its own. */
   seconds: 1.35,
   /** Cutting shakes the hull; each finished cut costs the wreck one integrity. */
   hullShake: 3.5,
@@ -88,6 +89,46 @@ export const LURE = {
   glow: 26,
 };
 
+/** The roaming elite: a glassmaw that charges down a telegraphed lane. */
+export const ELITE = {
+  radius: 26,
+  prowlSpeed: 58,
+  windup: 1.25,
+  dashSpeed: 520,
+  dashTime: 0.62,
+  recover: 1.9,
+  laneLength: 420,
+  damage: 22,
+  knockback: 320,
+  senseRange: 520,
+  /** How far its patrol wanders from its spawn point. */
+  roam: 260,
+};
+
+/** The sonar ping: a short reveal that also drowses every lure inside it. */
+export const SONAR = {
+  radius: 620,
+  active: 2.6,
+  cooldown: 9,
+  /** How long a lure stays asleep after the ping ends. */
+  drowse: 2.2,
+};
+
+/** Ascent pressure: venting hard is fast, and fast is a bend. */
+export const PRESSURE = {
+  safeRate: 165,
+  bendRate: 0.9,
+  recoverRate: 0.55,
+  damageAbove: 0.55,
+  damageRate: 9,
+};
+
+export const CONTRACTS = {
+  count: 3,
+  /** Cash paid when a contract closes, as a multiple of its goal's scale. */
+  rewardScale: 1,
+};
+
 export const CURRENT = {
   bandHeight: 620,
   strength: 210,
@@ -95,13 +136,19 @@ export const CURRENT = {
 };
 
 export const SALVAGE = {
+  /** Eight classes: four from the first build, four for the deep water. */
   kinds: [
-    { id: 'coil', label: 'copper coil', value: 36, mass: 1.0, colour: '#e08b3c', radius: 9 },
-    { id: 'glass', label: 'amber glass', value: 66, mass: 1.4, colour: '#f2b33d', radius: 10 },
-    { id: 'ingot', label: 'silver ingot', value: 110, mass: 2.2, colour: '#bfd7e6', radius: 11 },
-    { id: 'relic', label: 'trench relic', value: 210, mass: 2.8, colour: '#7ef0c8', radius: 12 },
+    { id: 'coil', label: 'copper coil', value: 36, mass: 1.0, cutTime: 1.35, colour: '#e08b3c', radius: 9 },
+    { id: 'glass', label: 'amber glass', value: 66, mass: 1.4, cutTime: 1.2, colour: '#f2b33d', radius: 10 },
+    { id: 'ingot', label: 'silver ingot', value: 110, mass: 2.2, cutTime: 1.6, colour: '#bfd7e6', radius: 11 },
+    { id: 'relic', label: 'trench relic', value: 210, mass: 2.8, cutTime: 1.9, colour: '#7ef0c8', radius: 12 },
+    { id: 'pearl', label: 'brine pearl', value: 92, mass: 0.7, cutTime: 0.85, colour: '#d9f7ff', radius: 8 },
+    { id: 'bloom', label: 'lumen bloom', value: 128, mass: 0.9, cutTime: 1.05, colour: '#9dff8f', radius: 9 },
+    { id: 'obsidian', label: 'obsidian shard', value: 165, mass: 3.2, cutTime: 2.45, colour: '#7d7fa8', radius: 13 },
+    { id: 'bell', label: 'drowned bell', value: 330, mass: 4.6, cutTime: 3.1, colour: '#ffcf7a', radius: 15 },
   ],
-  /** Which kinds a wreck of each depth tier carries, with weights. */
+  defaultCutTime: 1.35,
+  /** Fallback tables, by depth tier, for a wreck with no band table. */
   tiers: [
     ['coil', 'coil', 'coil', 'glass', 'glass', 'ingot'],
     ['coil', 'glass', 'glass', 'ingot', 'ingot', 'relic'],

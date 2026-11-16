@@ -108,53 +108,76 @@ export function stageShot(name, world) {
     return { screen: SCREEN_PLAY, camera: { x: 120, y: 1190 }, best: 235, reason: null };
   }
 
-  // The cover: the Black Shelf at ~90 m — a lit wreck under tether, a vent warning on the
-  // left, a pressure well pulling on the right, a lure awake in the lamp cone, a live combo
-  // in the HUD and two pieces in the hold. Everything in it is the real simulation.
+  // The cover: the Brine Hollow at ~160 m. A lit wreck under tether, a vent warning on the
+  // left, a pressure well pulling on the right, a glassmaw mid-windup with its danger lane
+  // drawn across the frame, a sonar ping still ringing, a live combo and the contract board
+  // in the HUD. Every object in it is the real simulation, staged by the real rules.
   world.wrecks = [];
   world.lures = [];
   world.vents = [];
   world.wells = [];
-  const shelfWreck = world.spawnWreckAt(900, 2760, 3);
-  world.spawnWreckAt(300, 3160, 3);
-  world.spawnWreckAt(1240, 2450, 2);
-  place(world, 604, 2720, 900, 2744);
-  attachTo(world, shelfWreck, 0);
-  world.hook.cutProgress = 0.52;
-  world.hook.cutNode = shelfWreck.nodes[1];
-  shelfWreck.nodes[1].cut = 0.52;
-  world.cargo.push({ kind: 'relic', label: 'trench relic', colour: '#7ef0c8', value: 214, mass: 2.8, x: 566, y: 2736, phase: 0.9, spin: 0.2 });
-  world.cargo.push({ kind: 'ingot', label: 'silver ingot', colour: '#bfd7e6', value: 138, mass: 2.2, x: 552, y: 2724, phase: 2.4, spin: -0.2 });
-  world.player.aim = Math.atan2(2790 - 2720, 930 - 604);
-  world.player.oxygen = 74;
-  world.player.hull = 78;
-  world.banked = 380;
-  world.depthMax = 96;
-  world.time = 231;
+  world.elites = [];
+  const hollowWreck = world.spawnWreckAt(880, 4720, 3);
+  world.spawnWreckAt(300, 5120, 3);
+  world.spawnWreckAt(1250, 4380, 2);
+  place(world, 604, 4680, 900, 4704);
+  attachTo(world, hollowWreck, 0);
+  hollowWreck.nodes[1].cut = 0.46;
+  world.hook.cutProgress = 0.46;
+  world.hook.cutNode = hollowWreck.nodes[1];
+  world.cargo.push({ kind: 'bell', label: 'drowned bell', colour: '#ffcf7a', value: 356, mass: 4.6, x: 566, y: 4692, phase: 0.9, spin: 0.2 });
+  world.cargo.push({ kind: 'obsidian', label: 'obsidian shard', colour: '#7d7fa8', value: 186, mass: 3.2, x: 552, y: 4680, phase: 2.4, spin: -0.2 });
+  world.player.aim = Math.atan2(4750 - 4680, 930 - 604);
+  world.player.oxygen = 82;
+  world.player.hull = 74;
+  world.player.bend = 0.12;
+  world.banked = 610;
+  world.depthMax = 168;
+  world.time = 268;
   world.combo.count = 3;
   world.combo.multiplier = 1.5;
-  world.combo.timer = 5.6;
-  world.environment = environmentForY(2720);
+  world.combo.timer = 5.4;
+  world.band = 2;
+  world.environment = environmentForY(4680);
   world.deepSeen = true;
-  const coverVent = world.spawnVentAt(360, 2860, 5.4);
-  const coverWell = world.spawnWellAt(1150, 2560, 6.3);
-  const lureA = world.spawnLureAt(1040, 2660);
+  world.contracts = [
+    { id: 'bank', title: 'bank a haul', unit: '$', goal: 560, reward: 130, progress: 610, done: true, closedDive: 1 },
+    { id: 'cut', title: 'cut pieces free', unit: '', goal: 9, reward: 95, progress: 6, done: false, closedDive: -1 },
+    { id: 'bell', title: 'raise a drowned bell', unit: '', goal: 1, reward: 190, progress: 0, done: false, closedDive: -1 },
+  ];
+  world.sonar.active = 1.5;
+  world.sonar.cooldown = 4.2;
+  world.sonar.radius = 620;
+  const coverVent = world.spawnVentAt(330, 4880, 5.4);
+  const coverWell = world.spawnWellAt(1160, 4520, 6.3);
+  const coverElite = world.spawnEliteAt(1120, 4640);
+  coverElite.phase = 'windup';
+  coverElite.timer = 0.5;
+  coverElite.laneX = -0.94;
+  coverElite.laneY = 0.34;
+  coverElite.laneStartX = coverElite.x;
+  coverElite.laneStartY = coverElite.y;
+  coverElite.angle = Math.atan2(coverElite.laneY, coverElite.laneX);
+  const lureA = world.spawnLureAt(1000, 4770);
   lureA.awake = 2.2;
-  const lureB = world.spawnLureAt(760, 2900);
+  const lureB = world.spawnLureAt(760, 4990);
   lureB.awake = 0.8;
-  world.spawnLureAt(220, 2600).awake = 0;
+  world.spawnLureAt(220, 4600).awake = 0;
   for (let index = 0; index < 46; index += 1) {
-    world.particles.spawnBubble(560 + Math.sin(index * 2.3) * 40, 2960 + Math.cos(index * 1.7) * 46, 10, -30 - (index % 5) * 6, 2 + (index % 3));
+    world.particles.spawnBubble(560 + Math.sin(index * 2.3) * 40, 4920 + Math.cos(index * 1.7) * 46, 10, -30 - (index % 5) * 6, 2 + (index % 3));
   }
-  for (let index = 0; index < 26; index += 1) world.particles.spawnSpark(900 + Math.sin(index) * 40, 2740 + Math.cos(index) * 26, index % 4 ? 'amber' : 'dull');
-  settle(world, 0.25, { thrust: 0, ballast: 0, grapple: true, cut: true, aimX: 920, aimY: 2750 });
+  for (let index = 0; index < 26; index += 1) world.particles.spawnSpark(900 + Math.sin(index) * 40, 4700 + Math.cos(index) * 26, index % 4 ? 'amber' : 'dull');
+  settle(world, 0.25, { thrust: 0, ballast: 0, grapple: true, cut: true, aimX: 900, aimY: 4710 });
   coverVent.clock = 5.4;
   coverWell.clock = 6.3;
   coverVent.phase = 'warning';
   coverWell.phase = 'pull';
-  world.hook.cutProgress = 0.52;
-  world.hook.tension = 0.46;
-  return { screen: SCREEN_PLAY, camera: { x: 20, y: 2420 }, best: 380, reason: null };
+  coverElite.phase = 'windup';
+  coverElite.timer = 0.5;
+  world.sonar.active = 1.5;
+  world.hook.cutProgress = 0.46;
+  world.hook.tension = 0.44;
+  return { screen: SCREEN_PLAY, camera: { x: 20, y: 4380 }, best: 610, reason: null };
 }
 
 export { VIEW };

@@ -91,7 +91,7 @@ export function stepGrapple(state, dt, intent) {
       hook.rest = clamp(distance(hook.x, hook.y, player.x, player.y), GRAPPLE.minRest, GRAPPLE.maxRest);
       hook.flash = 1;
       events.push({ type: 'attach', x: hook.x, y: hook.y });
-    } else if (hook.travel > GRAPPLE.reach) {
+    } else if (hook.travel > GRAPPLE.reach * (state.refits.slackRope > 0 ? 1.15 : 1)) {
       hook.state = 'retracting';
     }
     return { events, tether, freeNodes };
@@ -118,14 +118,15 @@ export function stepGrapple(state, dt, intent) {
   const dist = Math.hypot(dx, dy) || 1;
   const stretch = dist - hook.rest;
   hook.tension = clamp(stretch / GRAPPLE.snapSlack, 0, 1.4);
-  const pull = Math.min(GRAPPLE.maxPull * (1 + 0.3 * state.refits.winch), Math.max(0, stretch) * GRAPPLE.spring);
+  const slack = state.refits.slackRope > 0 ? 0.75 : 1;
+  const pull = Math.min(GRAPPLE.maxPull * (1 + 0.3 * state.refits.winch) * slack, Math.max(0, stretch) * GRAPPLE.spring * slack);
   if (stretch > 0) {
     tether.x = (dx / dist) * pull;
     tether.y = (dy / dist) * pull;
     wreck.vx += (-dx / dist) * pull * GRAPPLE.wreckShare * dt;
     wreck.vy += (-dy / dist) * pull * GRAPPLE.wreckShare * dt;
   }
-  if (stretch > GRAPPLE.snapSlack) {
+  if (stretch > GRAPPLE.snapSlack && state.refits.slackRope === 0) {
     releaseHook(hook, 'snap');
     events.push({ type: 'release' });
     return { events, tether: { x: 0, y: 0 }, freeNodes };
@@ -142,7 +143,8 @@ export function stepGrapple(state, dt, intent) {
       // Progress lives on the piece, not on the hook: drifting to another piece never throws
       // away work already done, and letting go for a moment does not reset the cut.
       hook.cutNode = node;
-      node.cut = Math.min(1, node.cut + (dt / CUT.seconds) * (1 + 0.35 * state.refits.winch + 0.15 * state.refits.sweep));
+      const seconds = node.cutTime ?? CUT.seconds;
+      node.cut = Math.min(1, node.cut + (dt / seconds) * (1 + 0.35 * state.refits.winch + 0.15 * state.refits.sweep));
       hook.cutProgress = node.cut;
       events.push({ type: 'cutting', x: player.x + (nodeAt(wreck, node).x - player.x) * 0.6, y: player.y + (nodeAt(wreck, node).y - player.y) * 0.6 });
       if (node.cut >= 1) {

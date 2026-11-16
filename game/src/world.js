@@ -10,7 +10,10 @@ import { createHook, releaseHook, stepGrapple } from './grapple.js';
 import { beginCollapse, collapseWreck, createWreck, nodeAt, stepWrecks } from './wrecks.js';
 import { createLure, stepLures } from './hazards.js';
 import { createCurrents, currentAt, currentForce } from './currents.js';
-import { environmentForY, spawnGap } from './environment.js';
+import { bandIndexForDepth, environmentForY, spawnGap } from './environment.js';
+import { createElite, stepElites } from './elites.js';
+import { createSonar, ping as sonarPing, sonarReady, stepSonar } from './sonar.js';
+import { createContracts, stepContracts } from './contracts.js';
 import { createVent, stepVents } from './vents.js';
 import { createPressureWell, stepPressureWells } from './pressure-wells.js';
 import { createCombo, stepCombo, collectCombo, resetCombo } from './economy.js';
@@ -30,6 +33,12 @@ export const EVENT_WON = 512;
 export const EVENT_DEEP = 1024;
 export const EVENT_VENT = 2048;
 export const EVENT_WELL = 4096;
+export const EVENT_BAND = 8192;
+export const EVENT_CONTRACT = 16384;
+export const EVENT_CACHE = 32768;
+export const EVENT_ELITE = 65536;
+export const EVENT_SONAR = 131072;
+export const EVENT_BEND = 262144;
 
 export const PHASE_DIVE = 'dive';
 export const PHASE_SURFACED = 'surfaced';
@@ -56,7 +65,7 @@ export function createWorld(random) {
     depthMax: 0,
     banked: 0,
     best: 0,
-    stats: { cuts: 0, items: 0, hits: 0, collapses: 0, dives: 0, surfaced: 0, lost: 0 },
+    stats: { cuts: 0, items: 0, hits: 0, collapses: 0, dives: 0, surfaced: 0, lost: 0, massLanded: 0, bells: 0, contracts: 0, eliteHits: 0, pings: 0 },
     offers: [],
     shake: 0,
     flash: 0,
@@ -67,10 +76,21 @@ export function createWorld(random) {
     currentBand: null,
     vents: [],
     wells: [],
+    elites: [],
     combo: createCombo(),
     environment: null,
     deepSeen: false,
+    band: 0,
+    /** 0..1 band-crossing flash, read by the renderer only. */
+    transition: 0,
     hitStop: 0,
+    sonar: createSonar(),
+    contracts: [],
+    cache: null,
+    summary: null,
+    diveEarned: 0,
+    diveLost: 0,
+    diveContracts: 0,
   };
 
   world.reset = (seed) => {
@@ -80,7 +100,7 @@ export function createWorld(random) {
     world.dive = -1;
     world.time = 0;
     world.depthMax = 0;
-    world.stats = { cuts: 0, items: 0, hits: 0, collapses: 0, dives: 0, surfaced: 0, lost: 0 };
+    world.stats = { cuts: 0, items: 0, hits: 0, collapses: 0, dives: 0, surfaced: 0, lost: 0, massLanded: 0, bells: 0, contracts: 0, eliteHits: 0, pings: 0 };
     world.offers = [];
     world.shake = 0;
     world.flash = 0;
@@ -88,9 +108,18 @@ export function createWorld(random) {
     world.messageTimer = 0;
     world.vents = [];
     world.wells = [];
+    world.elites = [];
     world.combo = createCombo();
     world.deepSeen = false;
     world.hitStop = 0;
+    world.sonar = createSonar();
+    world.band = 0;
+    world.transition = 0;
+    world.summary = null;
+    world.diveEarned = 0;
+    world.diveLost = 0;
+    world.diveContracts = 0;
+    world.contracts = createContracts(world.random);
     world.startDive();
     // A new contract means a fresh boat: the hull from the last run does not carry over.
     world.player.hull = world.player.hullMax;
@@ -103,6 +132,14 @@ export function createWorld(random) {
     world.cargo = [];
     world.wrecks = [];
     world.lures = [];
+    world.vents = [];
+    world.wells = [];
+    world.elites = [];
+    world.cache = null;
+    world.summary = null;
+    world.diveEarned = 0;
+    world.diveLost = 0;
+    world.diveContracts = 0;
     world.hook = createHook();
     world.particles.clear();
     world.lastSpawnY = 340;
@@ -114,6 +151,10 @@ export function createWorld(random) {
     resetPlayerForDive(world.player, world.refits);
     world.particles.seedSilt(world.player.x, world.player.y + 300, 120);
     spawnAhead(world);
+    if (world.refits.airCache > 0) {
+      const first = world.wrecks[0];
+      world.cache = { x: (first?.x ?? 800) + 120, y: (first?.y ?? 500) + 60, taken: false };
+    }
   };
 
   world.spawnWreckAt = (x, y, tier) => {
@@ -126,6 +167,18 @@ export function createWorld(random) {
     const lure = createLure(world.random, x, y);
     world.lures.push(lure);
     return lure;
+  };
+
+  world.spawnEliteAt = (x, y) => {
+    const elite = createElite(world.random, x, y);
+    world.elites.push(elite);
+    return elite;
+  };
+
+  world.ping = () => {
+    if (!sonarPing(world.sonar, world.refits)) return false;
+    world.stats.pings += 1;
+    return true;
   };
 
   world.spawnVentAt = (x, y, offset = 0) => {
@@ -196,11 +249,19 @@ export function createWorld(random) {
     world.currentBand = band;
     const environment = environmentForY(world.player.y);
     world.environment = environment;
-    if (!world.deepSeen && environment.id === 'black-shelf') {
+    const bandIndex = bandIndexForDepth(world.player.depth);
+    if (bandIndex !== world.band) {
+      world.band = bandIndex;
+      world.pushMessage(`${environment.label} — ${bandIndex === 2 ? 'the hollow pays, and it hunts' : bandIndex === 1 ? 'stronger current, richer wrecks' : 'back in the light'}`, 3);
+      world.transition = 1;
+      events.mask |= EVENT_BAND;
+    }
+    if (!world.deepSeen && bandIndex >= 1) {
       world.deepSeen = true;
-      world.pushMessage('BLACK SHELF — stronger current, richer wrecks', 3);
       events.mask |= EVENT_DEEP;
     }
+    stepSonar(world.sonar, dt);
+    const drowsy = world.sonar.active > 0;
     const base = currentForce(band, world.time);
     const current = { x: base.x * environment.currentScale, y: base.y * environment.currentScale };
     const well = stepPressureWells(world.wells, dt, world.player);
@@ -208,6 +269,31 @@ export function createWorld(random) {
     current.y += well.force.y;
     if (well.hits.length > 0) events.mask |= EVENT_WELL;
     stepCombo(world.combo, dt);
+
+    const eliteEvents = stepElites(world.elites, dt, world.player, world.time, drowsy);
+    for (const hit of eliteEvents) {
+      if (hit.type === 'windup') continue;
+      const dealt = damagePlayer(world.player, hit.damage);
+      if (dealt > 0) {
+        world.stats.hits += 1;
+        world.stats.eliteHits += 1;
+        events.mask |= EVENT_HIT | EVENT_ELITE;
+        events.hit = dealt;
+        world.shake = Math.min(32, world.shake + 20);
+        world.player.vx += hit.dirX * 320;
+        world.player.vy += hit.dirY * 320;
+        for (let index = 0; index < 18; index += 1) {
+          world.particles.spawnSpark(world.player.x + (world.random() - 0.5) * 30, world.player.y + (world.random() - 0.5) * 30, index % 2 ? 'amber' : 'dull');
+        }
+      }
+    }
+
+    if (world.cache && !world.cache.taken && Math.hypot(world.player.x - world.cache.x, world.player.y - world.cache.y) < 34) {
+      world.cache.taken = true;
+      world.player.oxygen = Math.min(world.player.oxygenMax, world.player.oxygen + 18);
+      events.mask |= EVENT_CACHE;
+      for (let index = 0; index < 12; index += 1) world.particles.spawnBubble(world.cache.x, world.cache.y, (world.random() - 0.5) * 60, -30 - world.random() * 40, 2.4);
+    }
 
     const grapple = stepGrapple(world, dt, intent);
     for (const event of grapple.events) {
@@ -252,6 +338,7 @@ export function createWorld(random) {
       freed.wreck.integrity -= 1;
       freed.wreck.hitFlash = 1;
       world.stats.cuts += 1;
+      if (freed.node.kind === 'bell') world.stats.bells += 1;
       events.mask |= EVENT_SALVAGE;
       for (let index = 0; index < 14; index += 1) {
         world.particles.spawnSpark(position.x, position.y, index % 3 === 0 ? 'amber' : 'dull');
@@ -268,6 +355,7 @@ export function createWorld(random) {
         const blast = collapseWreck(wreck);
         world.stats.collapses += 1;
         world.stats.lost += blast.lost.length;
+        world.diveLost += blast.lost.length;
         events.mask |= EVENT_COLLAPSE;
         for (let index = 0; index < 26; index += 1) {
           const angle = (index / 26) * Math.PI * 2;
@@ -318,9 +406,18 @@ export function createWorld(random) {
     }
     world.particles.step(dt, world.player.x, world.player.y, world.player.depth);
 
+    if (world.player.bending) events.mask |= EVENT_BEND;
     world.depthMax = Math.max(world.depthMax, world.player.depth);
+    for (const closed of stepContracts(world)) {
+      world.banked += closed.reward;
+      world.stats.contracts += 1;
+      world.diveContracts += closed.reward;
+      events.mask |= EVENT_CONTRACT;
+      world.pushMessage(`contract closed: ${closed.title} (+$${closed.reward})`, 2.6);
+    }
     world.shake = Math.max(0, world.shake - dt * 26);
     world.flash = Math.max(0, world.flash - dt * 2.5);
+    world.transition = Math.max(0, world.transition - dt * 0.8);
 
     if (world.player.hull <= 0) {
       world.phase = PHASE_DEAD;
@@ -348,18 +445,22 @@ function spawnAhead(world) {
   while (world.lastSpawnY < world.player.y + SPAWN_AHEAD && world.wrecks.length < MAX_WRECKS) {
     const tier = clamp(Math.floor(world.lastSpawnY / 900 + world.dive * 0.5), 0, 3);
     const x = 240 + world.random() * (TRENCH.width - 480);
-    const wreck = createWreck(world.random, x, world.lastSpawnY, tier);
+    const environment = environmentForY(world.lastSpawnY);
+    const wreck = createWreck(world.random, x, world.lastSpawnY, tier, environment.salvageTable);
     world.wrecks.push(wreck);
     const lures = tier >= 3 ? 2 : 1;
     for (let index = 0; index < lures; index += 1) {
       world.lures.push(createLure(world.random, x + (world.random() - 0.5) * 620, world.lastSpawnY + (world.random() - 0.5) * 340));
     }
-    const environment = environmentForY(world.lastSpawnY);
     if (world.random() < environment.ventChance) {
       world.vents.push(createVent(180 + world.random() * (TRENCH.width - 360), world.lastSpawnY + 140, world.random() * 8));
     }
     if (world.random() < environment.wellChance) {
       world.wells.push(createPressureWell(220 + world.random() * (TRENCH.width - 440), world.lastSpawnY + 320, world.random() * 9));
+    }
+    if (world.random() < environment.eliteChance) {
+      const existing = world.elites.filter((elite) => Math.abs(elite.homeY - world.lastSpawnY) < 1600).length;
+      if (existing === 0) world.elites.push(createElite(world.random, x + (world.random() - 0.5) * 420, world.lastSpawnY + 260));
     }
     world.lastSpawnY += spawnGap(environment, world.random);
   }
@@ -383,9 +484,20 @@ function stepCargo(world, dt) {
 
 function surface(world) {
   const earned = cargoValue(world.cargo);
+  const mass = cargoMass(world.cargo);
   world.banked += earned;
+  world.diveEarned = earned;
   world.stats.items += world.cargo.length;
+  world.stats.massLanded = Math.round((world.stats.massLanded + mass) * 10) / 10;
   world.stats.surfaced += 1;
+  world.summary = {
+    earned,
+    mass: Math.round(mass * 10) / 10,
+    pieces: world.cargo.length,
+    lost: world.diveLost,
+    contracts: world.diveContracts,
+    dive: world.dive + 1,
+  };
   world.cargo = [];
   world.hook = createHook();
   if (world.banked >= CONTRACT_TARGET) {

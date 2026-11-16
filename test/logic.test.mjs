@@ -3,7 +3,11 @@
 // test and exits non-zero on any failure.
 
 import { CONTRACT_TARGET, CUT, GRAPPLE, PLAYER, WRECK } from '../game/src/config.js';
-import { environmentForDepth, environmentForY, spawnGap } from '../game/src/environment.js';
+import { BANDS, environmentForDepth, environmentForY, spawnGap } from '../game/src/environment.js';
+import { createElite, stepElites } from '../game/src/elites.js';
+import { createSonar, ping, sonarCooldownFor, sonarRadius, stepSonar } from '../game/src/sonar.js';
+import { createContracts, stepContracts } from '../game/src/contracts.js';
+import { kindOf } from '../game/src/salvage.js';
 import { collectCombo, createCombo, stepCombo } from '../game/src/economy.js';
 import { lureSenseScale } from '../game/src/upgrades.js';
 import { createRandom } from '../game/src/random.js';
@@ -460,6 +464,200 @@ test('the deep band spawns its own hazards', () => {
   stepWorld(world, 0.5);
   assert(world.vents.length + world.wells.length > 0, 'no deep-band hazard spawned');
   assert(world.wrecks.length > 0, 'no deep-band wreck spawned');
+});
+
+test('three bands, each with its own hazard mix and salvage table', () => {
+  assert(BANDS.length === 3, `bands ${BANDS.length}`);
+  const ids = BANDS.map((band) => band.id);
+  assert(new Set(ids).size === 3, 'band ids are not distinct');
+  assert(environmentForDepth(10).id === 'upper-trench', environmentForDepth(10).id);
+  assert(environmentForDepth(90).id === 'black-shelf', environmentForDepth(90).id);
+  assert(environmentForDepth(200).id === 'brine-hollow', environmentForDepth(200).id);
+  const hollow = environmentForDepth(200);
+  assert(hollow.eliteChance > 0, 'the hollow has no elite');
+  assert(hollow.salvageScale > environmentForDepth(90).salvageScale, 'hollow pays no more than the shelf');
+  assert(hollow.salvageTable.includes('bell'), 'the hollow table has no bell');
+  assert(!environmentForDepth(10).salvageTable.includes('bell'), 'the upper trench table holds a bell');
+  assert(hollow.ventChance > environmentForDepth(90).ventChance, 'hollow vents are not denser');
+});
+
+test('four new salvage classes with their own mass, value and cut time', () => {
+  const pearl = kindOf('pearl');
+  const bloom = kindOf('bloom');
+  const obsidian = kindOf('obsidian');
+  const bell = kindOf('bell');
+  for (const kind of [pearl, bloom, obsidian, bell]) {
+    assert(typeof kind.cutTime === 'number' && kind.cutTime > 0, `${kind.id} has no cut time`);
+    assert(kind.mass > 0, `${kind.id} has no mass`);
+  }
+  assert(bell.mass > obsidian.mass && obsidian.mass > bloom.mass, 'new masses are not distinct');
+  assert(bell.value > obsidian.value && obsidian.value > bloom.value, 'new values are not distinct');
+  assert(bell.cutTime > obsidian.cutTime && obsidian.cutTime > pearl.cutTime, 'new cut times are not distinct');
+  const world = freshWorld(41);
+  clearField(world);
+  const wreck = world.spawnWreckAt(760, 900, 2, ['bell', 'pearl']);
+  assert(wreck.nodes.every((node) => node.cutTime > 0), 'a node has no cut time');
+});
+
+test('a bell takes longer to cut than a pearl', () => {
+  const measure = (kindId) => {
+    const world = freshWorld(42);
+    clearField(world);
+    const wreck = world.spawnWreckAt(760, 900, 0, [kindId]);
+    for (const node of wreck.nodes) node.kind = kindId;
+    const bell = kindOf(kindId);
+    for (const node of wreck.nodes) {
+      node.label = bell.label;
+      node.mass = bell.mass;
+      node.cutTime = bell.cutTime;
+      node.value = bell.value;
+    }
+    world.player.y = 880;
+    parkAtNode(world, wreck);
+    let seconds = 0;
+    while (world.cargo.length === 0 && seconds < 6) {
+      stepWorld(world, 0.1, { grapple: true, cut: true, aimX: anchorAt(wreck, 0).x, aimY: anchorAt(wreck, 0).y });
+      seconds += 0.1;
+    }
+    return seconds;
+  };
+  const bell = measure('bell');
+  const pearl = measure('pearl');
+  assert(bell > pearl + 0.5, `bell ${bell.toFixed(1)}s vs pearl ${pearl.toFixed(1)}s`);
+});
+
+test('the glassmaw telegraphs, then charges, then recovers', () => {
+  const player = { x: 800, y: 1200, radius: 17, mercy: 0 };
+  const elite = createElite(() => 0.5, 800, 1500);
+  const events = [];
+  // One step inside the sense range must lock the lane and raise the windup, without damage.
+  for (const event of stepElites([elite], 1 / 60, player, 0.1, false)) events.push(event.type);
+  assert(elite.phase === 'windup', `phase ${elite.phase}`);
+  assert(events.includes('windup'), 'no windup event was raised');
+  assert(events.every((type) => type !== 'elite-hit'), 'the windup damaged the diver');
+  // The lane is locked at the windup, so the charge is dodgeable by leaving it.
+  const laneX = elite.laneX;
+  const laneY = elite.laneY;
+  for (let index = 0; index < 90; index += 1) stepElites([elite], 1 / 60, { ...player, x: 60, y: 200 }, 0.2 + index / 60, false);
+  assert(elite.laneX === laneX && elite.laneY === laneY, 'the lane tracked the diver during the windup');
+  assert(elite.phase === 'dash' || elite.phase === 'recover', `phase ${elite.phase}`);
+  // A diver standing in the locked lane is hit, once, and the elite then recovers.
+  const elite2 = createElite(() => 0.5, 800, 1500);
+  stepElites([elite2], 1 / 60, player, 0.1, false);
+  let hits = 0;
+  for (let index = 0; index < 180; index += 1) {
+    const out = stepElites([elite2], 1 / 60, player, 0.2 + index / 60, false);
+    hits += out.filter((event) => event.type === 'elite-hit').length;
+  }
+  assert(hits === 1, `dash hits ${hits}`);
+  assert(elite2.phase === 'recover' || elite2.phase === 'prowl', `post-hit phase ${elite2.phase}`);
+  // Sonar drowses it: no new lane is locked.
+  const elite3 = createElite(() => 0.5, 800, 1500);
+  for (let index = 0; index < 120; index += 1) stepElites([elite3], 1 / 60, player, index / 60, true);
+  assert(elite3.phase === 'prowl', `a drowsy elite locked a lane: ${elite3.phase}`);
+});
+
+test('a sonar ping reveals, drowses, and then cools down', () => {
+  const sonar = createSonar();
+  const refits = { sonarArray: 0 };
+  assert(ping(sonar, refits) === true, 'the first ping was refused');
+  assert(sonar.active > 0, 'the ping is not active');
+  assert(ping(sonar, refits) === false, 'a second ping fired during the cooldown');
+  const wake = 3;
+  const drowsy = sonar.active > 0;
+  assert(drowsy, 'the ping did not put the water to sleep');
+  stepSonar(sonar, sonar.active + 0.1);
+  assert(sonar.active === 0, 'the ping never ended');
+  assert(sonar.cooldown > 0, 'the cooldown is not running');
+  stepSonar(sonar, sonar.cooldown + 0.1);
+  assert(ping(sonar, refits) === true, 'the set never cooled');
+  assert(wake > 0, 'sanity');
+  assert(sonarRadius({ sonarArray: 1 }) > sonarRadius({ sonarArray: 0 }), 'the array refit widened nothing');
+  assert(sonarCooldownFor({ sonarArray: 1 }) < sonarCooldownFor({ sonarArray: 0 }), 'the array refit shortened nothing');
+});
+
+test('fast venting builds a bend and damages the hull; a slow rise does not', () => {
+  const rise = (ballast) => {
+    const world = freshWorld(44);
+    clearField(world);
+    world.player.y = 2200;
+    world.player.oxygen = 999;
+    world.player.hull = 100;
+    world.player.ballast = ballast;
+    let peakBend = 0;
+    for (let index = 0; index < 240; index += 1) {
+      world.step(STEP, { ...IDLE, ballast: 0, aimX: world.player.x, aimY: world.player.y - 100 });
+      peakBend = Math.max(peakBend, world.player.bend);
+    }
+    return { bend: peakBend, hull: world.player.hull, rate: world.player.ascentRate };
+  };
+  const fast = rise(0);
+  const slow = rise(0.3);
+  assert(fast.bend > 0.3, `fast rise bend ${fast.bend.toFixed(2)}`);
+  assert(fast.hull < 100, `fast rise did no damage: ${fast.hull.toFixed(1)}`);
+  assert(slow.hull === 100, `slow rise damaged the hull: ${slow.hull.toFixed(1)}`);
+  assert(slow.bend < fast.bend, 'the slow rise bent as hard as the fast one');
+});
+
+test('the contract board rolls three distinct jobs and pays them once', () => {
+  const world = freshWorld(45);
+  assert(world.contracts.length === 3, `contracts ${world.contracts.length}`);
+  assert(new Set(world.contracts.map((entry) => entry.id)).size === 3, 'contracts are not distinct');
+  // Force a cheap goal on the first contract and satisfy it from world state.
+  const contract = world.contracts[0];
+  contract.id = 'cut';
+  contract.goal = 1;
+  contract.progress = 0;
+  world.stats.cuts = 1;
+  const bankedBefore = world.banked;
+  const closed = stepContracts(world);
+  assert(closed.length === 1 && closed[0] === contract, `closed ${closed.length}`);
+  world.banked += closed[0].reward;
+  assert(world.banked > bankedBefore, 'the reward was not paid');
+  const again = stepContracts(world);
+  assert(again.length === 0, 'the contract paid twice');
+});
+
+test('surfacing writes a dive summary with earned, mass and loss', () => {
+  const world = freshWorld(46);
+  clearField(world);
+  world.cargo.push({ kind: 'bell', label: 'drowned bell', colour: '#fff', value: 300, mass: 4.6, x: 0, y: 0, phase: 0, spin: 0 });
+  world.cargo.push({ kind: 'pearl', label: 'brine pearl', colour: '#fff', value: 90, mass: 0.7, x: 0, y: 0, phase: 0, spin: 0 });
+  world.diveLost = 2;
+  world.player.y = -60;
+  world.time = 9;
+  stepWorld(world, 0.2);
+  assert(world.phase === PHASE_SURFACED, world.phase);
+  assert(world.summary !== null, 'no summary was written');
+  near(world.summary.earned, 390, 0.001, 'summary earned');
+  near(world.summary.mass, 5.3, 0.001, 'summary mass');
+  assert(world.summary.lost === 2, `summary lost ${world.summary.lost}`);
+  near(world.stats.massLanded, 5.3, 0.001, 'landed tonnage');
+});
+
+test('the new refits change how the dive is played', () => {
+  // Air cache: the pod spawns and tops the tank up when reached.
+  const cached = freshWorld(47);
+  clearField(cached);
+  applyRefit(cached.refits, 'airCache');
+  cached.startDive();
+  assert(cached.cache !== null, 'no air cache was placed');
+  cached.player.oxygen = 40;
+  cached.player.x = cached.cache.x;
+  cached.player.y = cached.cache.y;
+  const mask = stepWorld(cached, 0.1);
+  assert(cached.player.oxygen > 40, 'the cache gave no air');
+  assert(cached.cache.taken === true, 'the cache was not consumed');
+  assert((mask & 32768) !== 0, 'no cache event');
+  // Slack rope: an over-stretched tether holds instead of snapping.
+  const slack = freshWorld(48);
+  clearField(slack);
+  applyRefit(slack.refits, 'slackRope');
+  const wreck = slack.spawnWreckAt(slack.player.x + 260, slack.player.y, 1);
+  attachTo(slack, wreck);
+  slack.player.x -= GRAPPLE.snapSlack + 140;
+  slack.step(STEP, { ...IDLE, grapple: true, aimX: slack.player.x - 100, aimY: slack.player.y });
+  assert(slack.hook.state === 'attached', 'the slack rope snapped');
 });
 
 // ---- report -------------------------------------------------------------------------------

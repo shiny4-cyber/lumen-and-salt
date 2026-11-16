@@ -49,6 +49,14 @@ function intentFor(world) {
     const length = Math.hypot(dx, dy) || 1;
     return { thrust: Math.max(-1, Math.min(1, dx / length)), ballast: vent ? -0.6 : dy > 0 ? 0.5 : -0.5, grapple: false, cut: false, aimX: player.x + dx, aimY: player.y + dy };
   }
+  const winding = world.elites.find((entry) => entry.phase === 'windup' && Math.hypot(entry.x - player.x, entry.y - player.y) < 460);
+  if (winding) {
+    // Step off the locked lane: perpendicular to it, away from the line.
+    const px = -winding.laneY;
+    const py = winding.laneX;
+    const side = (player.x - winding.laneStartX) * px + (player.y - winding.laneStartY) * py >= 0 ? 1 : -1;
+    return { thrust: Math.max(-1, Math.min(1, px * side)), ballast: py * side > 0 ? 0.5 : -0.5, grapple: false, cut: false, aimX: player.x + px * side * 100, aimY: player.y + py * side * 100 };
+  }
   if (threat) {
     const dx = player.x - threat.x;
     const dy = player.y - threat.y;
@@ -56,7 +64,10 @@ function intentFor(world) {
     return { thrust: Math.max(-1, Math.min(1, dx / length)), ballast: dy > 0 ? 0.5 : -0.5, grapple: false, cut: false, aimX: player.x + dx, aimY: player.y + dy };
   }
   if (world.cargo.length >= 3 || player.oxygen < world.player.oxygenMax * 0.3) {
-    return { thrust: 0, ballast: -1, grapple: false, cut: false, aimX: player.x, aimY: player.y - 100 };
+    // The bot reads the ascent gauge: it slows the vent before the bend builds.
+    // Vent hard, then pulse the ballast back when the bend climbs: a human's ascent rhythm.
+    const bend = player.bend ?? 0;
+    return { thrust: 0, ballast: bend > 0.4 ? 0.6 : -1, grapple: false, cut: false, aimX: player.x, aimY: player.y - 100 };
   }
   const hook = world.hook;
   if (hook.state === 'attached' && hook.wreck) {

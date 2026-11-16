@@ -76,6 +76,30 @@ export const REFITS = [
     },
   },
   {
+    id: 'sonarArray',
+    name: 'Sonar array',
+    blurb: 'Ping 45% wider on a 28% shorter cooldown: more reveals, more escapes.',
+    apply(refits) {
+      refits.sonarArray += 1;
+    },
+  },
+  {
+    id: 'airCache',
+    name: 'Air cache',
+    blurb: 'A spare pod floats by the first wreck each dive: +18 s of air, once.',
+    apply(refits) {
+      refits.airCache += 1;
+    },
+  },
+  {
+    id: 'slackRope',
+    name: 'Slack rope',
+    blurb: 'The tether never snaps and reaches 15% further, but pulls 25% weaker.',
+    apply(refits) {
+      refits.slackRope += 1;
+    },
+  },
+  {
     id: 'sweep',
     name: 'Sweep lens',
     blurb: 'Cut range +30% and a faster cut, but lures notice the lamp 30% further.',
@@ -86,7 +110,7 @@ export const REFITS = [
 ];
 
 export function createRefits() {
-  return { tank: 0, winch: 0, plating: 0, lens: 0, silent: 0, pump: 0, clamps: 0, servo: 0, deepHull: 0, sweep: 0 };
+  return { tank: 0, winch: 0, plating: 0, lens: 0, silent: 0, pump: 0, clamps: 0, servo: 0, deepHull: 0, sweep: 0, sonarArray: 0, airCache: 0, slackRope: 0 };
 }
 
 /** The share of the lamp's reach a lure still notices: a quiet propeller vs a sweep lens. */

@@ -2,7 +2,8 @@
 // wrecks and their salvage, lures, the tether, the bathyscaphe, particles and the lamp's
 // cone of light. It never changes the simulation — draw(world, view) is the only entry.
 
-import { PALETTE, TRENCH, VIEW } from './config.js';
+import { ELITE, PALETTE, TRENCH, VIEW } from './config.js';
+import { eliteLane } from './elites.js';
 import { clamp } from './mathx.js';
 import { anchorAt, nodeAt } from './wrecks.js';
 
@@ -51,7 +52,7 @@ export function createRenderer(canvas) {
 
     ctx.save();
     ctx.translate(shakeX, shakeY);
-    drawWater(cam);
+    drawWater(world, cam);
     drawGodRays(world, cam);
     drawDepthMarks(cam);
     drawDistantHulls(cam);
@@ -60,9 +61,12 @@ export function createRenderer(canvas) {
     drawFarSilt(world, cam);
     drawSilt(world, cam);
     drawWrecks(world, cam);
+    drawCache(world, cam);
     drawVents(world, cam);
     drawWells(world, cam);
     drawLures(world, cam);
+    drawElites(world, cam);
+    drawSonar(world, cam);
     drawCargo(world, cam);
     drawHook(world, cam);
     drawPlayer(world, cam);
@@ -70,11 +74,13 @@ export function createRenderer(canvas) {
     drawLamp(world, cam);
     drawEnvironmentTint(world);
     drawVignette(world);
+    drawBandTransition(world);
     ctx.restore();
   }
 
   /** The water itself: a depth-tinted gradient, cached per 120 px of camera height. */
-  function drawWater(cam) {
+  function drawWater(world, cam) {
+    const palette = world.environment?.palette ?? { haze: 'rgba(12, 74, 88, 0.10)' };
     const bucket = Math.round(cam.y / 120) * 120;
     let gradient = GRADIENTS.get(bucket);
     if (!gradient) {
@@ -90,11 +96,17 @@ export function createRenderer(canvas) {
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
     // Three soft horizontal haze bands give the column a sense of layered distance.
     const haze = ctx.createLinearGradient(0, 0, 0, VIEW.height);
-    haze.addColorStop(0, 'rgba(12, 74, 88, 0.10)');
+    haze.addColorStop(0, palette.haze ?? 'rgba(12, 74, 88, 0.10)');
     haze.addColorStop(0.5, 'rgba(4, 30, 40, 0.0)');
     haze.addColorStop(1, 'rgba(2, 16, 22, 0.16)');
     ctx.fillStyle = haze;
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    // The water itself eats the light: deeper frames sit darker, and the lamp earns its keep.
+    const abyss = clamp(bucket / 4200, 0, 1);
+    if (abyss > 0.02) {
+      ctx.fillStyle = `rgba(2, 10, 14, ${0.42 * abyss})`;
+      ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    }
     // A slow caustic shimmer near the surface, gone by 60 m.
     const shimmer = clamp(1 - cam.y / 900, 0, 1);
     if (shimmer > 0.02) {
@@ -200,7 +212,9 @@ export function createRenderer(canvas) {
 
   /** Slanted light shafts from the surface: only near the top, gone by about 70 m. */
   function drawGodRays(world, cam) {
-    const strength = clamp(1 - cam.y / 1500, 0, 1);
+    const sun = world.environment?.palette?.sun ?? 1;
+    const strength = clamp(1 - cam.y / 1500, 0, 1) * sun;
+    if (strength <= 0.02) return;
     if (strength <= 0.02) return;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -318,13 +332,11 @@ export function createRenderer(canvas) {
 
   /** The deep band is colder and violet; the upper trench stays teal. */
   function drawEnvironmentTint(world) {
-    if (world.environment?.id !== 'black-shelf') return;
-    // A violet veil, not a dimmer: the band reads colder without going blind.
+    const tint = world.environment?.palette?.tint;
+    if (!tint) return;
+    // A veil, not a dimmer: each band reads colder or warmer without going blind.
     ctx.save();
-    ctx.fillStyle = 'rgba(58, 30, 92, 0.16)';
-    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = 'rgba(46, 24, 78, 0.10)';
+    ctx.fillStyle = tint;
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
     ctx.restore();
   }
@@ -396,9 +408,7 @@ export function createRenderer(canvas) {
         const ny = node.oy + Math.sin(world.time * 1.6 + node.wobble) * 2;
         glowDot(ctx, nx, ny, node.radius + 10, node.colour, 0.85);
         ctx.fillStyle = node.colour;
-        ctx.beginPath();
-        ctx.arc(nx, ny, node.radius * 0.72, 0, Math.PI * 2);
-        ctx.fill();
+        drawSalvageShape(ctx, nx, ny, node.radius * 0.8, node.kind);
         if (node.cut > 0) {
           ctx.strokeStyle = PALETTE.amberHot;
           ctx.lineWidth = 2.4;
@@ -463,6 +473,147 @@ export function createRenderer(canvas) {
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  /** The glassmaw, and the lane it has locked: the telegraph is the whole fight. */
+  function drawElites(world, cam) {
+    for (const elite of world.elites) {
+      const x = elite.x - cam.x;
+      const y = elite.y - cam.y;
+      if (x < -320 || x > VIEW.width + 320 || y < -320 || y > VIEW.height + 320) continue;
+      if (elite.phase === 'windup') {
+        // The danger lane: a hard-edged stripe that grows brighter as the charge nears.
+        const lane = eliteLane(elite);
+        const heat = 1 - elite.timer / ELITE.windup;
+        ctx.save();
+        ctx.globalAlpha = 0.18 + heat * 0.35;
+        ctx.strokeStyle = PALETTE.bad;
+        ctx.lineWidth = 3 + heat * 5;
+        ctx.setLineDash([16, 12]);
+        ctx.beginPath();
+        ctx.moveTo(lane.x1 - cam.x, lane.y1 - cam.y);
+        ctx.lineTo(lane.x2 - cam.x, lane.y2 - cam.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.10 + heat * 0.12;
+        ctx.fillStyle = PALETTE.bad;
+        ctx.beginPath();
+        ctx.arc(x, y, elite.radius + 12 + heat * 16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      const charge = elite.phase === 'dash';
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(elite.angle);
+      glowDot(ctx, 0, 0, 58, charge ? PALETTE.danger : '#ffb060', 0.34);
+      // A long jawed silhouette: the shape reads even at thumbnail size.
+      ctx.fillStyle = charge ? '#ff8a6a' : '#26343c';
+      ctx.beginPath();
+      ctx.moveTo(-elite.radius * 1.5, 0);
+      ctx.quadraticCurveTo(-elite.radius * 0.4, -elite.radius, elite.radius * 1.5, -elite.radius * 0.3);
+      ctx.lineTo(elite.radius * 1.5, elite.radius * 0.3);
+      ctx.quadraticCurveTo(-elite.radius * 0.4, elite.radius, -elite.radius * 1.5, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = charge ? PALETTE.amberHot : 'rgba(180, 220, 220, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Teeth, so the jaw is legible.
+      ctx.fillStyle = 'rgba(240, 245, 235, 0.85)';
+      for (let index = 0; index < 5; index += 1) {
+        const tx = elite.radius * 0.3 + index * (elite.radius * 0.22);
+        ctx.beginPath();
+        ctx.moveTo(tx, -elite.radius * 0.22);
+        ctx.lineTo(tx + 5, 0);
+        ctx.lineTo(tx, elite.radius * 0.22);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.fillStyle = charge ? '#fff4e2' : '#ffd79a';
+      ctx.beginPath();
+      ctx.arc(elite.radius * 0.1, -elite.radius * 0.34, 3.1, 0, Math.PI * 2);
+      ctx.arc(elite.radius * 0.1, elite.radius * 0.34, 3.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      // The windup ring: a countdown you can read without a bar.
+      if (elite.phase === 'windup') {
+        const heat = 1 - elite.timer / ELITE.windup;
+        ctx.strokeStyle = PALETTE.warn;
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.arc(x, y, elite.radius + 22, -Math.PI / 2, -Math.PI / 2 + heat * Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  /** The sonar ping: expanding rings, and a marker on everything it reveals. */
+  function drawSonar(world, cam) {
+    const sonar = world.sonar;
+    if (!sonar || sonar.active <= 0) return;
+    const age = 1 - sonar.active / 2.6;
+    const radius = sonar.radius * (0.15 + age * 0.85);
+    const x = world.player.x - cam.x;
+    const y = world.player.y - cam.y;
+    ctx.save();
+    ctx.strokeStyle = `rgba(150, 240, 220, ${0.5 * (1 - age)})`;
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(150, 240, 220, ${0.25 * (1 - age)})`;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 0.66, 0, Math.PI * 2);
+    ctx.stroke();
+    // Markers: top edges of wrecks, lures and loose pieces inside the ping.
+    ctx.fillStyle = PALETTE.bio;
+    for (const wreck of world.wrecks) {
+      if (Math.hypot(wreck.x - world.player.x, wreck.y - world.player.y) > sonar.radius) continue;
+      const mx = wreck.x - cam.x;
+      const my = wreck.y - wreck.height * 0.7 - cam.y;
+      ctx.beginPath();
+      ctx.moveTo(mx, my - 7);
+      ctx.lineTo(mx + 6, my + 2);
+      ctx.lineTo(mx - 6, my + 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = PALETTE.amber;
+    for (const lure of world.lures) {
+      if (Math.hypot(lure.x - world.player.x, lure.y - world.player.y) > sonar.radius) continue;
+      ctx.beginPath();
+      ctx.arc(lure.x - cam.x, lure.y - cam.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = PALETTE.danger;
+    for (const elite of world.elites) {
+      if (Math.hypot(elite.x - world.player.x, elite.y - world.player.y) > sonar.radius) continue;
+      ctx.beginPath();
+      ctx.arc(elite.x - cam.x, elite.y - cam.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** A spare air pod, if the refit brought one. */
+  function drawCache(world, cam) {
+    const cache = world.cache;
+    if (!cache || cache.taken) return;
+    const x = cache.x - cam.x;
+    const y = cache.y - cam.y;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(world.time * 1.2) * 0.15);
+    glowDot(ctx, 0, 0, 34, PALETTE.bio, 0.5);
+    ctx.fillStyle = '#0d2b2a';
+    ctx.fillRect(-9, -13, 18, 26);
+    ctx.strokeStyle = PALETTE.bio;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-9, -13, 18, 26);
+    ctx.fillStyle = PALETTE.bio;
+    ctx.fillRect(-5, -7, 10, 3);
+    ctx.restore();
   }
 
   function drawCargo(world, cam) {
@@ -682,19 +833,31 @@ export function createRenderer(canvas) {
     ctx.restore();
   }
 
+  /** Crossing a band: a short breathing vignette so the change is felt, not just seen. */
+  function drawBandTransition(world) {
+    if (!world.transition || world.transition <= 0) return;
+    const t = clamp(world.transition, 0, 1);
+    const accent = world.environment?.palette?.accent ?? PALETTE.bio;
+    const gradient = ctx.createRadialGradient(VIEW.width / 2, VIEW.height / 2, VIEW.height * 0.15, VIEW.width / 2, VIEW.height / 2, VIEW.height * 0.95);
+    gradient.addColorStop(0, 'rgba(2, 10, 12, 0)');
+    gradient.addColorStop(1, hexAlpha(accent, 0.34 * t));
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    ctx.globalAlpha = t * 0.9;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = accent;
+    ctx.font = 'bold 26px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(world.environment?.label ?? '', VIEW.width / 2, VIEW.height * 0.32);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'left';
+  }
+
   function drawVignette(world) {
     const deep = world?.environment?.id === 'black-shelf' ? 0.08 : 0;
     const gradient = ctx.createRadialGradient(VIEW.width * 0.5, VIEW.height * 0.52, VIEW.height * 0.28, VIEW.width * 0.5, VIEW.height * 0.5, VIEW.height * 0.95);
     gradient.addColorStop(0, 'rgba(1, 10, 12, 0)');
     gradient.addColorStop(1, `rgba(1, 8, 10, ${0.42 + deep})`);
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-    // Three soft horizontal haze bands give the column a sense of layered distance.
-    const haze = ctx.createLinearGradient(0, 0, 0, VIEW.height);
-    haze.addColorStop(0, 'rgba(12, 74, 88, 0.10)');
-    haze.addColorStop(0.5, 'rgba(4, 30, 40, 0.0)');
-    haze.addColorStop(1, 'rgba(2, 16, 22, 0.16)');
-    ctx.fillStyle = haze;
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   }
 
@@ -716,6 +879,44 @@ export function createRenderer(canvas) {
       return { scale, offsetX, offsetY };
     },
   };
+}
+
+/** One silhouette per salvage class, so a wreck's haul reads before you cut it. */
+function drawSalvageShape(ctx, x, y, size, kind) {
+  ctx.beginPath();
+  if (kind === 'glass') {
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x + size * 0.8, y + size * 0.7);
+    ctx.lineTo(x - size * 0.8, y + size * 0.7);
+    ctx.closePath();
+  } else if (kind === 'ingot' || kind === 'obsidian') {
+    ctx.moveTo(x - size, y - size * 0.5);
+    ctx.lineTo(x + size, y - size * 0.35);
+    ctx.lineTo(x + size * 0.8, y + size * 0.55);
+    ctx.lineTo(x - size * 0.9, y + size * 0.45);
+    ctx.closePath();
+  } else if (kind === 'relic') {
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x + size * 0.7, y);
+    ctx.lineTo(x, y + size);
+    ctx.lineTo(x - size * 0.7, y);
+    ctx.closePath();
+  } else if (kind === 'bloom') {
+    for (let index = 0; index < 8; index += 1) {
+      const angle = (index / 8) * Math.PI * 2;
+      const radius = index % 2 === 0 ? size : size * 0.42;
+      ctx.lineTo(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius);
+    }
+    ctx.closePath();
+  } else if (kind === 'bell') {
+    ctx.arc(x, y, size * 0.85, Math.PI, 0);
+    ctx.lineTo(x + size * 0.85, y + size * 0.85);
+    ctx.lineTo(x - size * 0.85, y + size * 0.85);
+    ctx.closePath();
+  } else {
+    ctx.arc(x, y, size * 0.8, 0, Math.PI * 2);
+  }
+  ctx.fill();
 }
 
 /** An additive dot of light: the glow that makes bioluminescence read in deep water. */

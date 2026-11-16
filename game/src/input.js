@@ -9,6 +9,7 @@ export const ACTION_CHOOSE_1 = 8;
 export const ACTION_CHOOSE_2 = 16;
 export const ACTION_CHOOSE_3 = 32;
 export const ACTION_MUTE = 64;
+export const ACTION_SONAR = 128;
 
 const LEFT = new Set(['ArrowLeft', 'KeyA']);
 const RIGHT = new Set(['ArrowRight', 'KeyD']);
@@ -47,6 +48,7 @@ export function createInput(canvas) {
     else if (PAUSE.has(event.code)) actions |= ACTION_PAUSE;
     else if (event.code === 'KeyF') actions |= ACTION_LAMP;
     else if (event.code === 'KeyM') actions |= ACTION_MUTE;
+    else if (event.code === 'KeyQ') actions |= ACTION_SONAR;
     else if (CHOOSERS[event.code]) actions |= CHOOSERS[event.code];
     else if (!LEFT.has(event.code) && !RIGHT.has(event.code) && !UP.has(event.code) && !DOWN.has(event.code) && !CUT.has(event.code)) return;
     event.preventDefault();
