@@ -4,6 +4,7 @@
 
 import { CONTRACT_TARGET, PALETTE, TEXT, VIEW } from './config.js';
 import { REFITS } from './upgrades.js';
+import { TOOLS, toolCount } from './loadout.js';
 import { formatTime } from './hud.js';
 
 export const SCREEN_TITLE = 'title';
@@ -12,6 +13,8 @@ export const SCREEN_PAUSED = 'paused';
 export const SCREEN_REFIT = 'refit';
 export const SCREEN_OVER = 'over';
 export const SCREEN_WON = 'won';
+export const SCREEN_BRIEFING = 'briefing';
+export const SCREEN_LOADOUT = 'loadout';
 
 function panel(ctx, x, y, width, height, alpha = 0.82) {
   ctx.fillStyle = `rgba(7, 34, 40, ${alpha})`;
@@ -68,6 +71,67 @@ export function drawTitle(ctx, world, view) {
     centred(ctx, `best haul  $${view.best}`, VIEW.width / 2, 606, '16px "Consolas", monospace', PALETTE.bio);
   }
   centred(ctx, 'made for make.fun best-game-01 — original art, sound and code', VIEW.width / 2, VIEW.height - 30, '13px "Consolas", monospace', 'rgba(143, 179, 176, 0.6)');
+}
+
+export function drawBriefing(ctx, world, view) {
+  ctx.fillStyle = 'rgba(2, 12, 16, 0.82)';
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+  centred(ctx, 'THE YARD BRIEFING', VIEW.width / 2, 96, 'bold 34px "Trebuchet MS", system-ui, sans-serif', PALETTE.amberHot);
+  centred(ctx, 'Halcyon salvage contract · your boat, your air, your call', VIEW.width / 2, 128, '15px "Consolas", monospace', PALETTE.muted);
+
+  panel(ctx, VIEW.width / 2 - 430, 150, 860, 380, 0.92);
+  const lines = [
+    ['THE LOOP', 'Grapple a wreck, hold E to cut a piece free, carry it up and surface. Every dive banks its hold.'],
+    ['THE CLOCK', 'Oxygen is the run clock, and it burns faster the deeper you are. Surface early, or not at all.'],
+    ['THE ASCENT', 'Vented ballast rises fast. Above 165 px/s the bend builds and the hull pays for it: keep the gauge green.'],
+    ['THE RISK', 'Below 75 m the Black Shelf pays more and bites harder. Below 150 m the Brine Hollow pays best and hunts.'],
+    ['THE JOB', 'Three yard contracts run beside the main one: bank $1,500 and the contract closes.'],
+  ];
+  lines.forEach(([head, body], index) => {
+    const y = 186 + index * 68;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = PALETTE.amber;
+    ctx.font = 'bold 13px "Consolas", monospace';
+    ctx.fillText(head, VIEW.width / 2 - 400, y);
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = '14px "Trebuchet MS", system-ui, sans-serif';
+    wrapText(ctx, body, VIEW.width / 2 + 60, y, 400, 18, '14px "Trebuchet MS", system-ui, sans-serif', PALETTE.text);
+  });
+  const pulse = 0.6 + 0.4 * Math.sin(view.time * 3.2);
+  centred(ctx, 'press SPACE for the loadout', VIEW.width / 2, 570, 'bold 22px "Trebuchet MS", system-ui, sans-serif', PALETTE.text, pulse);
+  centred(ctx, 'W/S ballast · A/D thrust · hold LMB grapple · hold E cut · F lamp · Q sonar · P pause', VIEW.width / 2, 606, '13px "Consolas", monospace', PALETTE.muted);
+}
+
+export function drawLoadout(ctx, world, view) {
+  ctx.fillStyle = 'rgba(2, 12, 16, 0.7)';
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+  centred(ctx, 'LOADOUT', VIEW.width / 2, 118, 'bold 40px "Trebuchet MS", system-ui, sans-serif', PALETTE.amberHot);
+  const ramp = world.ramp;
+  centred(ctx, `dive ${world.dive + 1}${ramp ? `  ·  ${ramp.label}  ·  ${ramp.brief}` : ''}`, VIEW.width / 2, 150, '14px "Consolas", monospace', PALETTE.muted);
+  centred(ctx, `fit two of three  ·  ${toolCount(world.tools)} selected`, VIEW.width / 2, 194, 'bold 18px "Trebuchet MS", system-ui, sans-serif', PALETTE.text);
+
+  const cardWidth = 330;
+  const gap = 24;
+  const total = TOOLS.length * cardWidth + (TOOLS.length - 1) * gap;
+  const startX = (VIEW.width - total) / 2;
+  TOOLS.forEach((tool, index) => {
+    const x = startX + index * (cardWidth + gap);
+    const y = 230;
+    const fitted = world.tools[tool.id];
+    panel(ctx, x, y, cardWidth, 178, fitted ? 0.96 : 0.72);
+    ctx.strokeStyle = fitted ? PALETTE.amber : PALETTE.panelEdge;
+    ctx.lineWidth = fitted ? 2.4 : 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, cardWidth - 1, 177);
+    centred(ctx, `${index + 1}`, x + cardWidth / 2, y + 40, 'bold 24px "Consolas", monospace', fitted ? PALETTE.amberHot : PALETTE.muted);
+    centred(ctx, tool.name, x + cardWidth / 2, y + 78, 'bold 21px "Trebuchet MS", system-ui, sans-serif', fitted ? PALETTE.text : PALETTE.muted);
+    wrapText(ctx, tool.blurb, x + cardWidth / 2, y + 108, cardWidth - 46, 18, '14px "Trebuchet MS", system-ui, sans-serif', PALETTE.muted);
+    centred(ctx, fitted ? 'FITTED' : 'left at the dock', x + cardWidth / 2, y + 158, '12px "Consolas", monospace', fitted ? PALETTE.bio : PALETTE.bioDim);
+  });
+  centred(ctx, '1 / 2 / 3 or click to fit    ·    SPACE to dive', VIEW.width / 2, 448, 'bold 19px "Trebuchet MS", system-ui, sans-serif', PALETTE.text);
+  const contracts = world.contracts.filter((contract) => !contract.done);
+  if (contracts.length > 0) {
+    centred(ctx, contracts.map((contract) => contract.title).join('   ·   '), VIEW.width / 2, 486, '13px "Consolas", monospace', PALETTE.bioDim);
+  }
 }
 
 export function drawPaused(ctx, world, view) {
@@ -168,7 +232,7 @@ export function drawGameOver(ctx, world, view) {
   }
   const pulse = 0.6 + 0.4 * Math.sin(view.time * 4);
   centred(ctx, 'press SPACE to dive again', VIEW.width / 2, 516, 'bold 24px "Trebuchet MS", system-ui, sans-serif', PALETTE.text, pulse);
-  centred(ctx, 'the contract is still open — bank $1,500 before the hull or the air gives out', VIEW.width / 2, 552, '14px "Trebuchet MS", system-ui, sans-serif', PALETTE.muted);
+  centred(ctx, 'the contract is still open — bank $1,800 before the hull or the air gives out', VIEW.width / 2, 552, '14px "Trebuchet MS", system-ui, sans-serif', PALETTE.muted);
 }
 
 export function drawWon(ctx, world, view) {

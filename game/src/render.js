@@ -4,6 +4,8 @@
 
 import { ELITE, PALETTE, TRENCH, VIEW } from './config.js';
 import { eliteLane } from './elites.js';
+import { chorusBand } from './chorus.js';
+import { BANDS } from './environment.js';
 import { clamp } from './mathx.js';
 import { anchorAt, nodeAt } from './wrecks.js';
 
@@ -66,7 +68,9 @@ export function createRenderer(canvas) {
     drawWells(world, cam);
     drawLures(world, cam);
     drawElites(world, cam);
+    drawChoruses(world, cam);
     drawSonar(world, cam);
+    drawFloaters(world, cam);
     drawCargo(world, cam);
     drawHook(world, cam);
     drawPlayer(world, cam);
@@ -74,6 +78,7 @@ export function createRenderer(canvas) {
     drawLamp(world, cam);
     drawEnvironmentTint(world);
     drawVignette(world);
+    drawDepthGauge(world);
     drawBandTransition(world);
     ctx.restore();
   }
@@ -546,6 +551,116 @@ export function createRenderer(canvas) {
         ctx.stroke();
       }
     }
+  }
+
+  /** The chorus: a bell that rings a damaging band outward, telegraphed by a swell. */
+  function drawChoruses(world, cam) {
+    for (const chorus of world.choruses) {
+      const x = chorus.x - cam.x;
+      const y = chorus.y - cam.y;
+      if (x < -400 || x > VIEW.width + 400 || y < -400 || y > VIEW.height + 400) continue;
+      ctx.save();
+      glowDot(ctx, x, y, 70, chorus.phase === 'swell' ? PALETTE.warn : PALETTE.bio, 0.3);
+      // Bell silhouette, hanging from a short stalk.
+      ctx.fillStyle = '#1b3440';
+      ctx.beginPath();
+      ctx.moveTo(x - chorus.radius, y + chorus.radius * 0.9);
+      ctx.quadraticCurveTo(x - chorus.radius, y - chorus.radius * 1.3, x, y - chorus.radius * 1.3);
+      ctx.quadraticCurveTo(x + chorus.radius, y - chorus.radius * 1.3, x + chorus.radius, y + chorus.radius * 0.9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = chorus.phase === 'swell' ? PALETTE.warn : 'rgba(180, 220, 220, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.bioDim;
+      ctx.beginPath();
+      ctx.arc(x, y + chorus.radius * 1.1, 3.4, 0, Math.PI * 2);
+      ctx.fill();
+      if (chorus.phase === 'swell') {
+        // Contracting ring: the countdown to the shock.
+        const inner = chorus.ringRadius;
+        ctx.strokeStyle = `rgba(255, 190, 120, ${0.5 - 0.2 * (inner / 300)})`;
+        ctx.lineWidth = 1.6;
+        for (let index = 0; index < 2; index += 1) {
+          const radius = Math.max(8, inner - index * 26);
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else if (chorus.phase === 'ring') {
+        const band = chorusBand(chorus);
+        ctx.strokeStyle = 'rgba(255, 130, 96, 0.85)';
+        ctx.lineWidth = (band.outer - band.inner) * 0.9;
+        ctx.beginPath();
+        ctx.arc(x, y, chorus.ringRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255, 230, 200, 0.7)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(x, y, chorus.ringRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  /** Pickup feedback: the value that just landed, rising with the combo. */
+  function drawFloaters(world, cam) {
+    if (!world.floaters || world.floaters.length === 0) return;
+    ctx.save();
+    ctx.textAlign = 'center';
+    for (const floater of world.floaters) {
+      const life = Math.max(0, floater.life);
+      ctx.globalAlpha = Math.min(1, life);
+      ctx.fillStyle = floater.tone === 'bio' ? PALETTE.bio : PALETTE.amberHot;
+      ctx.font = floater.tone === 'bio' ? 'bold 14px "Consolas", monospace' : 'bold 18px "Consolas", monospace';
+      ctx.fillText(floater.text, floater.x - cam.x, floater.y - cam.y - (1.3 - life) * 34);
+    }
+    ctx.restore();
+  }
+
+  /** A depth gauge on the right edge: band colours, metre ticks and the diver's marker. */
+  function drawDepthGauge(world) {
+    const x = VIEW.width - 18;
+    const top = 210;
+    const height = VIEW.height - 420;
+    const maxY = TRENCH.floorY;
+    ctx.save();
+    ctx.fillStyle = 'rgba(3, 20, 24, 0.55)';
+    ctx.fillRect(x - 6, top, 12, height);
+    BANDS.forEach((band, index) => {
+      const from = index === 0 ? 0 : band.minDepth * TRENCH.pxPerMetre;
+      const to = index + 1 < BANDS.length ? BANDS[index + 1].minDepth * TRENCH.pxPerMetre : maxY;
+      const y0 = top + (from / maxY) * height;
+      const y1 = top + (to / maxY) * height;
+      ctx.fillStyle = band.palette.accent;
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(x - 4, y0, 8, Math.max(2, y1 - y0));
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(200, 235, 230, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - 8, y0);
+      ctx.lineTo(x + 4, y0);
+      ctx.stroke();
+    });
+    for (let metres = 0; metres <= maxY / TRENCH.pxPerMetre; metres += 30) {
+      const y = top + ((metres * TRENCH.pxPerMetre) / maxY) * height;
+      ctx.strokeStyle = 'rgba(200, 235, 230, 0.2)';
+      ctx.beginPath();
+      ctx.moveTo(x - 3, y);
+      ctx.lineTo(x + 2, y);
+      ctx.stroke();
+    }
+    const markerY = top + Math.min(1, Math.max(0, world.player.y / maxY)) * height;
+    ctx.fillStyle = PALETTE.amberHot;
+    ctx.beginPath();
+    ctx.moveTo(x - 10, markerY);
+    ctx.lineTo(x - 16, markerY - 5);
+    ctx.lineTo(x - 16, markerY + 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   /** The sonar ping: expanding rings, and a marker on everything it reveals. */

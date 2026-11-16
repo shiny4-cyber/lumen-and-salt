@@ -9,7 +9,7 @@ An entry for **make.fun best-game-01 — "make the best game"**.
 *Lumen & Salt* is a 2D risk/reward diving game. You pilot a tethered bathyscaphe into the
 Halcyon Trench, grapple drifting wrecks, cut salvage free, feel the weight of it on the way
 up, dodge lures that hunt your lamp, and surface before the air runs out. The contract is
-closed at **$1,500 banked**; the run ends on a hull breach or an empty tank.
+closed at **$1,800 banked**; the run ends on a hull breach or an empty tank.
 
 Everything here is original for this entry: no engine, no library, no sampled audio, no
 borrowed art. The whole game is static files under `game/`, played with keyboard and mouse.
@@ -36,8 +36,8 @@ for byte the kit's). `/output` is the grader's path; `MAKEFUN_OUTPUT_DIR` stands
 ## Test it
 
 ```bash
-node test/logic.test.mjs                  # 36 headless fixed-step tests over the real simulation
-xvfb-run -a python3 test/browser_test.py  # 44 real-browser tests (Playwright + Firefox, headed)
+node test/logic.test.mjs                  # 41 headless fixed-step tests over the real simulation
+xvfb-run -a python3 test/browser_test.py  # 49 real-browser tests (Playwright + Firefox, headed)
 xvfb-run -a python3 tools/capture.py      # re-shoot the four entry screenshots
 /usr/bin/python3 tools/verify_shots.py     # gate limits, luminance and a text preview per shot
 node tools/gate_check.mjs                 # the gate rows, checked against out/ (run main.ts first)
@@ -159,3 +159,10 @@ game/src/mathx.js        small maths helpers
 ## Licence
 
 MIT — see `LICENSE`.
+
+## Loadout, ramp and briefing
+
+Before every dive you fit **two of three tools** — sonar set, power cutter, ballast assist — and
+the first dive opens with a briefing that states the loop, the air clock and the ascent rule. The
+dive index drives a three-step ramp (first water, working dive, deep contract) that scales hazard
+spawns, air burn and elites, so dive one teaches and dive six tests.

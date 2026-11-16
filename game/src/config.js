@@ -28,13 +28,13 @@ export const PLAYER = {
   /** How much cargo mass slows the horizontal thrust (1 = none, 0 = stopped). */
   cargoDrag: 0.06,
   hull: 100,
-  oxygen: 110,
+  oxygen: 112,
   /** Seconds a hit of invulnerability lasts, so one lure cannot chain-hit. */
   mercy: 1.4,
 };
 
 export const OXYGEN = {
-  drain: 0.55,
+  drain: 0.5,
   drainPerMetre: 0.008,
   /** Surfacing refills the tank; this is the reserve taken on top for a fresh dive. */
   breathOnSurface: 0,
@@ -105,6 +105,19 @@ export const ELITE = {
   roam: 260,
 };
 
+/** The chorus: a stationary ring-singer with a swelling tell. */
+export const CHORUS = {
+  radius: 22,
+  senseRange: 430,
+  swell: 1.3,
+  ring: 1.15,
+  rest: 2.2,
+  core: 26,
+  maxRadius: 300,
+  band: 26,
+  damage: 16,
+};
+
 /** The sonar ping: a short reveal that also drowses every lure inside it. */
 export const SONAR = {
   radius: 620,
@@ -138,14 +151,14 @@ export const CURRENT = {
 export const SALVAGE = {
   /** Eight classes: four from the first build, four for the deep water. */
   kinds: [
-    { id: 'coil', label: 'copper coil', value: 36, mass: 1.0, cutTime: 1.35, colour: '#e08b3c', radius: 9 },
-    { id: 'glass', label: 'amber glass', value: 66, mass: 1.4, cutTime: 1.2, colour: '#f2b33d', radius: 10 },
-    { id: 'ingot', label: 'silver ingot', value: 110, mass: 2.2, cutTime: 1.6, colour: '#bfd7e6', radius: 11 },
-    { id: 'relic', label: 'trench relic', value: 210, mass: 2.8, cutTime: 1.9, colour: '#7ef0c8', radius: 12 },
-    { id: 'pearl', label: 'brine pearl', value: 92, mass: 0.7, cutTime: 0.85, colour: '#d9f7ff', radius: 8 },
-    { id: 'bloom', label: 'lumen bloom', value: 128, mass: 0.9, cutTime: 1.05, colour: '#9dff8f', radius: 9 },
-    { id: 'obsidian', label: 'obsidian shard', value: 165, mass: 3.2, cutTime: 2.45, colour: '#7d7fa8', radius: 13 },
-    { id: 'bell', label: 'drowned bell', value: 330, mass: 4.6, cutTime: 3.1, colour: '#ffcf7a', radius: 15 },
+    { id: 'coil', label: 'copper coil', value: 19, mass: 1.0, cutTime: 1.35, colour: '#e08b3c', radius: 9 },
+    { id: 'glass', label: 'amber glass', value: 34, mass: 1.4, cutTime: 1.2, colour: '#f2b33d', radius: 10 },
+    { id: 'ingot', label: 'silver ingot', value: 56, mass: 2.2, cutTime: 1.6, colour: '#bfd7e6', radius: 11 },
+    { id: 'relic', label: 'trench relic', value: 108, mass: 2.8, cutTime: 1.9, colour: '#7ef0c8', radius: 12 },
+    { id: 'pearl', label: 'brine pearl', value: 47, mass: 0.7, cutTime: 0.85, colour: '#d9f7ff', radius: 8 },
+    { id: 'bloom', label: 'lumen bloom', value: 65, mass: 0.9, cutTime: 1.05, colour: '#9dff8f', radius: 9 },
+    { id: 'obsidian', label: 'obsidian shard', value: 84, mass: 3.2, cutTime: 2.45, colour: '#7d7fa8', radius: 13 },
+    { id: 'bell', label: 'drowned bell', value: 169, mass: 4.6, cutTime: 3.1, colour: '#ffcf7a', radius: 15 },
   ],
   defaultCutTime: 1.35,
   /** Fallback tables, by depth tier, for a wreck with no band table. */
@@ -160,7 +173,7 @@ export const SALVAGE = {
 };
 
 /** The contract that ends the run in a win: surfacing with this much banked. */
-export const CONTRACT_TARGET = 1500;
+export const CONTRACT_TARGET = 1800;
 
 export const DIVE = {
   /** Wreck depth tiers start this far down and step by this much per dive. */
@@ -217,7 +230,7 @@ export const TEXT = {
     'hold E  cut salvage free',
     'F  lamp on or off      P  pause',
   ],
-  contract: 'contract: surface with $1,500 banked',
+  contract: 'contract: surface with $1,800 banked',
   paused: 'PAUSED',
   resume: 'P or SPACE to resume',
   surfaced: 'SURFACED',

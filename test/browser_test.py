@@ -87,7 +87,17 @@ def main():
             page.keyboard.press("Space")
             advance(0.2)
             state = debug()
-            check("Space starts a dive", state["screen"] == "play", state["screen"])
+            check("Space opens the first-dive briefing", state["screen"] == "briefing", state["screen"])
+            page.keyboard.press("Space")
+            advance(0.1)
+            state = debug()
+            check("the briefing opens the loadout", state["screen"] == "loadout", state["screen"])
+            check("two of three tools are fitted", sum(state["tools"].values()) == 2, json.dumps(state["tools"]))
+            check("a new run starts on the first-water ramp", state["ramp"] == "first-water", state["ramp"])
+            page.keyboard.press("Space")
+            advance(0.2)
+            state = debug()
+            check("the loadout launches the dive", state["screen"] == "play", state["screen"])
             check("dive starts on the surface with a full tank", state["depth"] < 5 and state["oxygen"] > 100, json.dumps(state))
             check("the dive-start sequence runs before the diver is released", state["intro"] > 0, f"intro {state['intro']}")
             check("the run starts in the upper trench", state["environment"] == "upper-trench", state["environment"])
@@ -149,6 +159,7 @@ def main():
                     check("the freed piece carries value", False, "no salvage node on the wreck")
 
             # --- new hazards and the deep band -------------------------------------------
+            page.evaluate("() => window.__lumen.teleport(700, 1400)")
             page.evaluate("() => { const w = window.__lumen.world; w.player.mercy = 0; w.player.hull = 100; const v = w.spawnVentAt(w.player.x, w.player.y + 40, 6.3); v.clock = 6.3; }")
             vent_before = debug()["hull"]
             advance(0.3)
@@ -183,9 +194,9 @@ def main():
             elite = debug()
             check("the glassmaw exists in the hollow", elite["elite"] >= 1, str(elite["elite"]))
 
-            page.evaluate("() => { const w = window.__lumen.world; w.currents = []; w.wells = []; w.elites = []; w.player.ballast = 0; w.player.y = 4800; w.player.vy = 0; }")
+            page.evaluate("() => { const w = window.__lumen.world; w.currents = []; w.wells = []; w.elites = []; w.choruses = []; w.player.ballast = 0; w.player.bend = 0; w.player.y = 4800; w.player.vy = -220; }")
             intent(ballast=0.0, thrust=0.0, grapple=False, cut=False)
-            advance(3.2)
+            advance(0.8)
             bent = debug()
             check("a hard ascent builds a bend", bent["bend"] > 0.05, str(bent["bend"]))
 
@@ -212,9 +223,13 @@ def main():
             check("surfacing writes a dive summary", summary is not None and "earned" in summary, json.dumps(summary))
 
             page.keyboard.press("Digit1")
-            advance(0.4)
+            advance(0.2)
             refit = debug()
-            check("choosing a refit starts the next dive", refit["screen"] == "play" and refit["dive"] == 1, json.dumps(refit))
+            check("choosing a refit opens the loadout for the next dive", refit["screen"] == "loadout" and refit["dive"] == 0, refit["screen"])
+            page.keyboard.press("Space")
+            advance(0.3)
+            refit = debug()
+            check("the loadout launches the next dive", refit["screen"] == "play" and refit["dive"] == 1, f"{refit['screen']} dive {refit['dive']}")
 
             # --- pause -------------------------------------------------------------------
             page.keyboard.press("KeyP")
@@ -244,6 +259,10 @@ def main():
             over = debug()
             check("a broken hull ends the run", over["screen"] == "over", over["screen"])
             page.keyboard.press("Space")
+            advance(0.2)
+            page.keyboard.press("Space")
+            advance(0.2)
+            page.keyboard.press("Space")
             advance(2.4)
             restarted = debug()
             check("Space restarts instantly", restarted["screen"] == "play" and restarted["dive"] == 0, json.dumps(restarted))
@@ -251,7 +270,7 @@ def main():
             check("a restart refills the tank", restarted["oxygen"] > 95, restarted["oxygen"])
 
             # --- win screen --------------------------------------------------------------
-            page.evaluate("() => { const w = window.__lumen.world; w.banked = 1490; w.cargo.push({ kind: 'relic', label: 'relic', colour: '#7ef0c8', value: 40, mass: 2.8, x: w.player.x, y: w.player.y, phase: 0, spin: 0 }); w.player.y = -90; w.time = 5; }")
+            page.evaluate("() => { const w = window.__lumen.world; w.banked = 2400; w.cargo.push({ kind: 'relic', label: 'relic', colour: '#7ef0c8', value: 40, mass: 2.8, x: w.player.x, y: w.player.y, phase: 0, spin: 0 }); w.player.y = -90; w.time = 5; }")
             intent(ballast=0.0)
             advance(1.4)
             won = debug()

@@ -12,8 +12,11 @@ import { createLure, stepLures } from './hazards.js';
 import { createCurrents, currentAt, currentForce } from './currents.js';
 import { bandIndexForDepth, environmentForY, spawnGap } from './environment.js';
 import { createElite, stepElites } from './elites.js';
+import { createChorus, stepChorus } from './chorus.js';
+import { createLoadout, cutterScale, safeAscentScale, pumpScale, toolCount } from './loadout.js';
 import { createSonar, ping as sonarPing, sonarReady, stepSonar } from './sonar.js';
 import { createContracts, stepContracts } from './contracts.js';
+import { rampChance, rampForDive } from './difficulty.js';
 import { createVent, stepVents } from './vents.js';
 import { createPressureWell, stepPressureWells } from './pressure-wells.js';
 import { createCombo, stepCombo, collectCombo, resetCombo } from './economy.js';
@@ -86,11 +89,15 @@ export function createWorld(random) {
     hitStop: 0,
     sonar: createSonar(),
     contracts: [],
+    tools: createLoadout(),
+    choruses: [],
     cache: null,
+    floaters: [],
     summary: null,
     diveEarned: 0,
     diveLost: 0,
     diveContracts: 0,
+    ramp: null,
   };
 
   world.reset = (seed) => {
@@ -120,6 +127,8 @@ export function createWorld(random) {
     world.diveLost = 0;
     world.diveContracts = 0;
     world.contracts = createContracts(world.random);
+    world.ramp = rampForDive(0);
+    world.tools = createLoadout();
     world.startDive();
     // A new contract means a fresh boat: the hull from the last run does not carry over.
     world.player.hull = world.player.hullMax;
@@ -128,6 +137,7 @@ export function createWorld(random) {
   world.startDive = () => {
     world.dive += 1;
     world.stats.dives = world.dive + 1;
+    world.ramp = rampForDive(world.dive);
     world.phase = PHASE_DIVE;
     world.cargo = [];
     world.wrecks = [];
@@ -135,7 +145,9 @@ export function createWorld(random) {
     world.vents = [];
     world.wells = [];
     world.elites = [];
+    world.choruses = [];
     world.cache = null;
+    world.floaters = [];
     world.summary = null;
     world.diveEarned = 0;
     world.diveLost = 0;
@@ -175,10 +187,22 @@ export function createWorld(random) {
     return elite;
   };
 
+  world.setTools = (tools) => {
+    world.tools = { ...world.tools, ...tools };
+    return world.tools;
+  };
+
   world.ping = () => {
+    if (!world.tools.sonar) return false;
     if (!sonarPing(world.sonar, world.refits)) return false;
     world.stats.pings += 1;
     return true;
+  };
+
+  world.spawnChorusAt = (x, y) => {
+    const chorus = createChorus(world.random, x, y);
+    world.choruses.push(chorus);
+    return chorus;
   };
 
   world.spawnVentAt = (x, y, offset = 0) => {
@@ -288,6 +312,17 @@ export function createWorld(random) {
       }
     }
 
+    for (const hit of stepChorus(world.choruses, dt, world.player, world.time, drowsy)) {
+      if (hit.type !== 'chorus-hit') continue;
+      const dealt = damagePlayer(world.player, hit.damage);
+      if (dealt > 0) {
+        world.stats.hits += 1;
+        events.mask |= EVENT_HIT;
+        events.hit = dealt;
+        world.shake = Math.min(26, world.shake + 12);
+      }
+    }
+
     if (world.cache && !world.cache.taken && Math.hypot(world.player.x - world.cache.x, world.player.y - world.cache.y) < 34) {
       world.cache.taken = true;
       world.player.oxygen = Math.min(world.player.oxygenMax, world.player.oxygen + 18);
@@ -317,12 +352,12 @@ export function createWorld(random) {
       ballast: intent.ballast,
       tether: grapple.tether,
       current,
-    }, world.cargo, world.refits);
+    }, world.cargo, world.refits, world.ramp?.oxygenScale ?? 1, { pumpScale: pumpScale(world.tools), safeAscentScale: safeAscentScale(world.tools) });
 
     for (const freed of grapple.freeNodes) {
       const position = nodeAt(freed.wreck, freed.node);
       freed.node.free = true;
-      const paid = collectCombo(world.combo, freed.node.value, environment.salvageScale);
+      const paid = collectCombo(world.combo, freed.node.value, environment.salvageScale * (world.ramp?.salvageScale ?? 1));
       freed.node.value = paid;
       world.cargo.push({
         kind: freed.node.kind,
@@ -339,6 +374,8 @@ export function createWorld(random) {
       freed.wreck.hitFlash = 1;
       world.stats.cuts += 1;
       if (freed.node.kind === 'bell') world.stats.bells += 1;
+      world.floaters.push({ x: position.x, y: position.y, text: `+$${paid}`, life: 1.3, tone: 'amber' });
+      if (world.combo.count > 1) world.floaters.push({ x: position.x, y: position.y - 20, text: `x${world.combo.multiplier.toFixed(2)}`, life: 1.1, tone: 'bio' });
       events.mask |= EVENT_SALVAGE;
       for (let index = 0; index < 14; index += 1) {
         world.particles.spawnSpark(position.x, position.y, index % 3 === 0 ? 'amber' : 'dull');
@@ -405,6 +442,8 @@ export function createWorld(random) {
       world.particles.spawnBubble(world.player.x + (world.random() - 0.5) * 14, world.player.y - 12, (world.random() - 0.5) * 30, -20 - world.random() * 40, 1.6 + world.random() * 2.4);
     }
     world.particles.step(dt, world.player.x, world.player.y, world.player.depth);
+    for (const floater of world.floaters) floater.life -= dt;
+    world.floaters = world.floaters.filter((floater) => floater.life > 0);
 
     if (world.player.bending) events.mask |= EVENT_BEND;
     world.depthMax = Math.max(world.depthMax, world.player.depth);
@@ -452,13 +491,16 @@ function spawnAhead(world) {
     for (let index = 0; index < lures; index += 1) {
       world.lures.push(createLure(world.random, x + (world.random() - 0.5) * 620, world.lastSpawnY + (world.random() - 0.5) * 340));
     }
-    if (world.random() < environment.ventChance) {
+    if (world.random() < rampChance(environment.ventChance, world.ramp?.hazardScale ?? 1)) {
       world.vents.push(createVent(180 + world.random() * (TRENCH.width - 360), world.lastSpawnY + 140, world.random() * 8));
     }
-    if (world.random() < environment.wellChance) {
+    if (world.random() < rampChance(environment.wellChance, world.ramp?.hazardScale ?? 1)) {
       world.wells.push(createPressureWell(220 + world.random() * (TRENCH.width - 440), world.lastSpawnY + 320, world.random() * 9));
     }
-    if (world.random() < environment.eliteChance) {
+    if (environment.id === 'brine-hollow' && world.random() < 0.5 * (world.ramp?.hazardScale ?? 1)) {
+      world.choruses.push(createChorus(world.random, 220 + world.random() * (TRENCH.width - 440), world.lastSpawnY + 200));
+    }
+    if (world.random() < rampChance(environment.eliteChance, world.ramp?.eliteScale ?? 1)) {
       const existing = world.elites.filter((elite) => Math.abs(elite.homeY - world.lastSpawnY) < 1600).length;
       if (existing === 0) world.elites.push(createElite(world.random, x + (world.random() - 0.5) * 420, world.lastSpawnY + 260));
     }

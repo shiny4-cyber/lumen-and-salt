@@ -2,9 +2,9 @@
   "title": "LUMEN & SALT",
   "genre": "2D risk/reward diving game (canvas 2D, no library)",
   "oneLine": "Pilot a tethered bathyscaphe down the Halcyon Trench: grapple drifting wrecks, cut the salvage free, mind the weight of it, and surface before the air runs out.",
-  "goal": "Surface with $1,500 banked to close the salvage contract while three yard contracts run alongside it. Below 75 m the Black Shelf pays more and costs more; below 150 m the Brine Hollow pays most and hunts you with a glassmaw.",
+  "goal": "Surface with $1,800 banked to close the salvage contract while three yard contracts run alongside it. Below 75 m the Black Shelf pays more and costs more; below 150 m the Brine Hollow pays most and hunts you with a glassmaw.",
   "loseCondition": "Run ends when hull integrity or oxygen reaches zero. Both are shown in the HUD, and both are finite.",
-  "winCondition": "Bank $1,500 across any number of dives and the contract-complete screen appears.",
+  "winCondition": "Bank $1,800 across any number of dives and the contract-complete screen appears.",
   "controls": {
     "A / D or Left / Right": "lateral thrust; the bathyscaphe accelerates and coasts, no instant snap",
     "W / S or Up / Down": "vent (rise) or flood (sink) ballast; venting all the way is the fast ascent",
@@ -34,15 +34,20 @@
     "elite": "The glassmaw: one roaming elite in the Brine Hollow. It prowls a slow home circuit, then locks a lane toward the diver and telegraphs for 1.25 s with a dashed danger lane and a filling ring; the lane is fixed at lock time, so stepping out of it is the counter. It charges at 520 px/s for 0.62 s (22 damage and a knockback), then recovers for 1.9 s where it cannot hurt anyone. A sonar ping drowses it.",
     "sonar": "Q fires a sonar ping: 620 px radius, 2.6 s active, 9 s cooldown. While it rings it reveals wrecks (chevrons), lures (amber dots) and glassmaws (red dots), and drowses every lure and elite inside the radius, which is the escape from a wreck full of lures. The sonar-array refit widens it 45% and cuts the cooldown 28%.",
     "ascentPressure": "Venting ballast hard is the fast way up and the way to a bend. Above 165 px/s ascent a bend builds (0.9/s scaled by overspeed); under it the body recovers at 0.55/s. Above 0.55 bend the hull takes continuous damage. The HUD shows the ascent rate, the safe marker and SAFE / FAST ASCENT / BEND, so the trade between speed and hull is always visible.",
-    "contracts": "Three yard contracts are rolled from the run seed out of seven kinds (bank a haul, cut pieces free, reach the depth, make dives, land a tonnage, raise a drowned bell, hold a combo), each with their own goal and cash reward. Progress is read live off the world, the HUD tracks all three, and the reward is paid once the moment the goal is met. The refit screen's last-dive panel shows what the dive earned, its tonnage, pieces lost to collapsing hulls and contract money paid."
+    "contracts": "Three yard contracts are rolled from the run seed out of seven kinds (bank a haul, cut pieces free, reach the depth, make dives, land a tonnage, raise a drowned bell, hold a combo), each with their own goal and cash reward. Progress is read live off the world, the HUD tracks all three, and the reward is paid once the moment the goal is met. The refit screen's last-dive panel shows what the dive earned, its tonnage, pieces lost to collapsing hulls and contract money paid.",
+    "briefing": "A first-dive briefing screen states the loop, the oxygen clock, the ascent rule (safe rate and the bend), what the deeper bands cost, and the contract target, then hands over to the loadout.",
+    "difficultyRamp": "Dive index drives the ramp: FIRST WATER (dives 1-2) spawns hazards at 40%, burns 68% of the air and spawns no elites; WORKING DIVE (3-4) is near baseline; DEEP CONTRACT (5+) runs hazards at 115%, air at 112% and elites at 140%. The loadout screen names the current step.",
+    "loadout": "Before every dive the diver fits two of three tools, and each changes play rather than a stat: Sonar set (Q pings), Power cutter (+40% cut speed and +10% range) and Ballast assist (+50% pump, safe ascent rate +25%). Fitting a third drops the oldest; the loadout screen shows the ramp and the open contracts.",
+    "chorus": "The chorus: a bell-singer that holds station in the Brine Hollow. It swells for 1.3 s (rings contract, the tell), then rings an expanding damaging band for 1.15 s out to 300 px; the eye (inside 26 px) and the water outside the band are safe. Then it rests 2.2 s. A sonar ping keeps it from singing.",
+    "feedback": "Every cut throws a rising +$value floater and a x-combo floater, sparks and a hull flash; hits freeze the frame for 70 ms and shake; the right edge carries a depth gauge with each band's accent colour, 30 m ticks and the diver's marker."
   },
   "loop": [
     "Title screen: goal, controls, best haul.",
-    "Dive-start sequence: the hatch holds for 1.15 s, then the diver is released.",
+    "Briefing on the first dive, then the loadout: fit two of three tools, then launch.",
     "Dive: descend, read the band (the Black Shelf is richer and rougher), grapple a wreck, cut salvage free, hold the combo, dodge lures, read vents and wells, manage ballast and air, decide when to surface.",
     "Dive: descend through three bands, read the hazard mix, grapple a wreck, cut salvage free (each class has its own cut time), hold the combo, ping the sonar, dodge lures, vents, wells and the glassmaw, keep the ascent safe on the way up.",
     "Refit screen: one of three upgrades, then the next, deeper dive.",
-    "Contract complete at $1,500, or a run over screen on hull breach or an empty tank; SPACE restarts instantly."
+    "Contract complete at $1,800, or a run over screen on hull breach or an empty tank; SPACE restarts instantly."
   ],
   "files": {
     "game/index.html": "the page: canvas, status line, module entry",
@@ -72,7 +77,10 @@
     "game/src/economy.js": "salvage combo: multiplier, decay window, value payout",
     "game/src/elites.js": "the glassmaw: prowl, locked-lane windup, dash, recovery",
     "game/src/sonar.js": "the sonar ping: radius, active window, cooldown, refit scaling",
-    "game/src/contracts.js": "the yard contract board: roll, live progress, one-time payout"
+    "game/src/contracts.js": "the yard contract board: roll, live progress, one-time payout",
+    "game/src/loadout.js": "the two-of-three dive loadout and its mechanical scales",
+    "game/src/chorus.js": "the bell-singer: swell, damaging ring band, rest",
+    "game/src/difficulty.js": "the dive-index ramp: hazard, air and elite scales"
   },
   "performance": {
     "step": "fixed 1/60 s; rendering is separate and reads the state",

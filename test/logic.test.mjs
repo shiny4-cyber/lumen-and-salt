@@ -8,6 +8,9 @@ import { createElite, stepElites } from '../game/src/elites.js';
 import { createSonar, ping, sonarCooldownFor, sonarRadius, stepSonar } from '../game/src/sonar.js';
 import { createContracts, stepContracts } from '../game/src/contracts.js';
 import { kindOf } from '../game/src/salvage.js';
+import { createLoadout, toggleTool, toolCount, cutterScale, pumpScale, safeAscentScale } from '../game/src/loadout.js';
+import { createChorus, stepChorus } from '../game/src/chorus.js';
+import { rampForDive } from '../game/src/difficulty.js';
 import { collectCombo, createCombo, stepCombo } from '../game/src/economy.js';
 import { lureSenseScale } from '../game/src/upgrades.js';
 import { createRandom } from '../game/src/random.js';
@@ -658,6 +661,88 @@ test('the new refits change how the dive is played', () => {
   slack.player.x -= GRAPPLE.snapSlack + 140;
   slack.step(STEP, { ...IDLE, grapple: true, aimX: slack.player.x - 100, aimY: slack.player.y });
   assert(slack.hook.state === 'attached', 'the slack rope snapped');
+});
+
+test('the loadout fits two of three tools and never none', () => {
+  const loadout = createLoadout();
+  assert(toolCount(loadout) === 2, `fitted ${toolCount(loadout)}`);
+  const third = toggleTool(loadout, 'ballast');
+  assert(third.ballast === true, 'the third tool did not fit');
+  assert(toolCount(third) === 2, `fitted ${toolCount(third)} after the swap`);
+  const none = toggleTool({ sonar: false, cutter: false, ballast: true }, 'ballast');
+  assert(toolCount(none) === 1, 'the last tool can be dropped');
+  assert(cutterScale({ cutter: true }) > cutterScale({ cutter: false }), 'the cutter has no scale');
+  assert(pumpScale({ ballast: true }) > 1 && safeAscentScale({ ballast: true }) > 1, 'ballast assist has no scale');
+});
+
+test('the cutter actually cuts faster, and only when fitted', () => {
+  const measure = (cutter) => {
+    const world = freshWorld(51);
+    clearField(world);
+    world.setTools({ sonar: false, cutter, ballast: !cutter });
+    const wreck = world.spawnWreckAt(760, 900, 0);
+    const fatal = wreck.nodes.find((node) => !node.free);
+    fatal.cutTime = 1.6;
+    world.player.y = 880;
+    parkAtNode(world, wreck);
+    let seconds = 0;
+    while (world.cargo.length === 0 && seconds < 6) {
+      stepWorld(world, 0.1, { grapple: true, cut: true, aimX: anchorAt(wreck, 0).x, aimY: anchorAt(wreck, 0).y });
+      seconds += 0.1;
+    }
+    return seconds;
+  };
+  const fast = measure(true);
+  const slow = measure(false);
+  assert(fast > 0 && slow > 0, 'a cut never finished');
+  assert(fast < slow - 0.2, `cutter ${fast.toFixed(1)}s vs plain ${slow.toFixed(1)}s`);
+});
+
+test('without the sonar set a ping is refused', () => {
+  const world = freshWorld(52);
+  clearField(world);
+  world.setTools({ sonar: false });
+  assert(world.ping() === false, 'a ping fired with no sonar fitted');
+  world.setTools({ sonar: true });
+  world.sonar.cooldown = 0;
+  assert(world.ping() === true, 'a fitted sonar refused to ping');
+});
+
+test('the ramp is forgiving for the first dives and then escalates', () => {
+  const first = rampForDive(0);
+  const working = rampForDive(2);
+  const deep = rampForDive(6);
+  assert(first.hazardScale < working.hazardScale, 'first water is not gentler than working');
+  assert(first.oxygenScale < 1, 'first water burns the full tank');
+  assert(first.eliteScale === 0, 'an elite can spawn on the first dive');
+  assert(deep.hazardScale > working.hazardScale, 'the deep contract is not harsher');
+  assert(deep.eliteScale > working.eliteScale, 'the deep contract has no more elites');
+  const world = freshWorld(53);
+  assert(world.ramp.id === 'first-water', world.ramp.id);
+  for (let index = 0; index < 4; index += 1) world.startDive();
+  assert(world.ramp.id === 'deep-contract', world.ramp.id);
+});
+
+test('the chorus swells, rings a damaging band, then rests', () => {
+  const player = { x: 100, y: 100, radius: 17, mercy: 0 };
+  const chorus = createChorus(() => 0.5, 100, 100);
+  const types = [];
+  for (const event of stepChorus([chorus], 1 / 60, player, 0.1, false)) types.push(event.type);
+  assert(chorus.phase === 'swell', chorus.phase);
+  assert(types.includes('swell'), 'no swell telegraph');
+  // Standing in the path of the ring takes a hit once the band passes over; the eye is safe.
+  const inBand = { ...player, x: chorus.x + 150 };
+  let hits = 0;
+  for (let index = 0; index < 260; index += 1) {
+    const out = stepChorus([chorus], 1 / 60, inBand, 0.2 + index / 60, false);
+    hits += out.filter((event) => event.type === 'chorus-hit').length;
+  }
+  assert(hits >= 1, 'the ring never caught a diver standing at the bell');
+  assert(chorus.phase === 'rest' || chorus.phase === 'hum', `post-ring phase ${chorus.phase}`);
+  // Drowsy, it never starts to sing.
+  const quiet = createChorus(() => 0.5, 100, 100);
+  for (let index = 0; index < 120; index += 1) stepChorus([quiet], 1 / 60, player, index / 60, true);
+  assert(quiet.phase === 'hum', `a drowsy chorus sang: ${quiet.phase}`);
 });
 
 // ---- report -------------------------------------------------------------------------------

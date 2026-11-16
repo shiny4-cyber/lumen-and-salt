@@ -15,9 +15,10 @@ import { createRenderer } from './render.js';
 import { ACTION_CHOOSE_1, ACTION_CHOOSE_2, ACTION_CHOOSE_3, ACTION_CONFIRM, ACTION_LAMP, ACTION_MUTE, ACTION_PAUSE, ACTION_SONAR, createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { drawHud } from './hud.js';
-import { SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_REFIT, SCREEN_TITLE, SCREEN_WON, drawGameOver, drawPaused, drawRefit, drawTitle, drawWon } from './screens.js';
+import { SCREEN_BRIEFING, SCREEN_LOADOUT, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_REFIT, SCREEN_TITLE, SCREEN_WON, drawBriefing, drawGameOver, drawLoadout, drawPaused, drawRefit, drawTitle, drawWon } from './screens.js';
 import { stageShot } from './shots.js';
 import { applyRefit } from './upgrades.js';
+import { TOOLS, toggleTool } from './loadout.js';
 
 const MAX_FRAME = 0.25;
 
@@ -65,6 +66,8 @@ function paint(view) {
   renderer.draw(world, { camera: view.camera });
   if (view.screen === SCREEN_PLAY || view.screen === SCREEN_REFIT) drawHud(ctx, world, view);
   if (view.screen === SCREEN_TITLE) drawTitle(ctx, world, view);
+  else if (view.screen === SCREEN_BRIEFING) drawBriefing(ctx, world, view);
+  else if (view.screen === SCREEN_LOADOUT) drawLoadout(ctx, world, view);
   else if (view.screen === SCREEN_PAUSED) drawPaused(ctx, world, view);
   else if (view.screen === SCREEN_REFIT) drawRefit(ctx, world, view);
   else if (view.screen === SCREEN_OVER) drawGameOver(ctx, world, view);
@@ -101,6 +104,8 @@ function runGame() {
   let aim = { x: world.player.x + 220, y: world.player.y };
   let override = null;
   let uiTime = 0;
+  /** True when the next launch must start a fresh dive (after a refit). */
+  let pendingDive = false;
   /** The short dive-start sequence: the hatch closes, then the diver is released. */
   let introTimer = 0;
   /** Impact hit-stop, in seconds: a few frames of freeze make a hit land. */
@@ -118,10 +123,11 @@ function runGame() {
     accumulator = 0;
     cameraY = renderer.camera(world).y;
     cameraX = renderer.camera(world).x;
-    screen = SCREEN_PLAY;
-    introTimer = 1.15;
+    pendingDive = false;
+    screen = SCREEN_BRIEFING;
+    introTimer = 0;
     hitStop = 0;
-    announce('Dive started.');
+    announce('Briefing.');
   }
 
   function endRun(won) {
@@ -140,13 +146,31 @@ function runGame() {
     if (!offer) return;
     applyRefit(world.refits, offer.id);
     audio.play('refit');
-    world.startDive();
+    pendingDive = true;
+    screen = SCREEN_LOADOUT;
+    announce(`Refit: ${offer.name}. Fit two tools.`);
+  }
+
+  /** Leave the briefing or the loadout and put the diver in the water. */
+  function launchDive() {
+    if (pendingDive) {
+      world.startDive();
+      pendingDive = false;
+    }
     accumulator = 0;
-    introTimer = 0.9;
+    introTimer = 1.15;
     hitStop = 0;
     cameraY = renderer.camera(world).y;
+    cameraX = renderer.camera(world).x;
     screen = SCREEN_PLAY;
-    announce(`Refit: ${offer.name}. Next dive.`);
+    announce(`Dive ${world.dive + 1}.`);
+  }
+
+  function toggleToolAt(index) {
+    const tool = TOOLS[index];
+    if (!tool) return;
+    world.setTools(toggleTool(world.tools, tool.id));
+    audio.play('ui');
   }
 
   function handleActions(actions) {
@@ -161,6 +185,17 @@ function runGame() {
     }
     if (actions & ACTION_CONFIRM) audio.unlock();
     if (screen === SCREEN_TITLE && (actions & IMPORTANT_ACTIONS)) startRun();
+    else if (screen === SCREEN_BRIEFING) {
+      if (actions & IMPORTANT_ACTIONS) {
+        screen = SCREEN_LOADOUT;
+        announce('Loadout: fit two tools, then space to dive.');
+      }
+    } else if (screen === SCREEN_LOADOUT) {
+      if (actions & ACTION_CHOOSE_1) toggleToolAt(0);
+      else if (actions & ACTION_CHOOSE_2) toggleToolAt(1);
+      else if (actions & ACTION_CHOOSE_3) toggleToolAt(2);
+      if (actions & IMPORTANT_ACTIONS) launchDive();
+    }
     else if (screen === SCREEN_PLAY) {
       if (actions & ACTION_PAUSE) {
         screen = SCREEN_PAUSED;
@@ -338,9 +373,17 @@ function runGame() {
 
   // Refit cards are clickable as well as numbered.
   canvas.addEventListener('pointerdown', (event) => {
-    if (screen !== SCREEN_REFIT) return;
+    if (screen !== SCREEN_REFIT && screen !== SCREEN_LOADOUT) return;
     const rect = canvas.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 1280;
+    if (screen === SCREEN_LOADOUT) {
+      const cardWidth = 330;
+      const gap = 24;
+      const startX = (1280 - (TOOLS.length * cardWidth + (TOOLS.length - 1) * gap)) / 2;
+      const index = Math.floor((x - startX) / (cardWidth + gap));
+      if (index >= 0 && index < TOOLS.length) toggleToolAt(index);
+      return;
+    }
     if (x < 300) choose(0);
     else if (x < 660) choose(1);
     else choose(2);
@@ -386,6 +429,9 @@ function runGame() {
       elite: world.elites.length,
       bend: Number(world.player.bend.toFixed(2)),
       cache: world.cache ? !world.cache.taken : false,
+      tools: { ...world.tools },
+      ramp: world.ramp?.id ?? 'first-water',
+      chorus: world.choruses.length,
       combo: world.combo.count,
       multiplier: Number(world.combo.multiplier.toFixed(2)),
       vents: world.vents.length,
@@ -408,6 +454,8 @@ function runGame() {
       override = null;
     },
     start: () => startRun(),
+    launch: () => launchDive(),
+    tools: () => ({ ...world.tools }),
     ping: () => world.ping(),
     chooseRefit: (index) => choose(index),
     press: (action) => handleActions(action),

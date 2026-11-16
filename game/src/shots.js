@@ -158,6 +158,10 @@ export function stageShot(name, world) {
   coverElite.laneStartX = coverElite.x;
   coverElite.laneStartY = coverElite.y;
   coverElite.angle = Math.atan2(coverElite.laneY, coverElite.laneX);
+  const coverChorus = world.spawnChorusAt(700, 4540);
+  coverChorus.phase = 'ring';
+  coverChorus.timer = 0.55;
+  coverChorus.ringRadius = 168;
   const lureA = world.spawnLureAt(1000, 4770);
   lureA.awake = 2.2;
   const lureB = world.spawnLureAt(760, 4990);
@@ -174,6 +178,9 @@ export function stageShot(name, world) {
   coverWell.phase = 'pull';
   coverElite.phase = 'windup';
   coverElite.timer = 0.5;
+  coverChorus.phase = 'ring';
+  coverChorus.timer = 0.55;
+  coverChorus.ringRadius = 168;
   world.sonar.active = 1.5;
   world.hook.cutProgress = 0.46;
   world.hook.tension = 0.44;

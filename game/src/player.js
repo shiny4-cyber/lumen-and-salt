@@ -29,6 +29,7 @@ export function createPlayer() {
     /** Ascent pressure: 0 is a calm rise, 1 is a hard bend. */
     bend: 0,
     ascentRate: 0,
+    safeRate: 165,
     bending: false,
   };
 }
@@ -57,12 +58,12 @@ export function resetPlayerForDive(player, refits) {
  * Step the diver. `intent` is { thrust, ballast, tether:{x,y}, current:{x,y} }, all
  * accelerations already resolved by the world; `cargo` is what he is dragging up.
  */
-export function stepPlayer(player, dt, intent, cargo, refits) {
+export function stepPlayer(player, dt, intent, cargo, refits, oxygenScale = 1, tools = null) {
   const mass = cargoMass(cargo);
   const clampFactor = clamp(1 - mass * PLAYER.cargoDrag * (1 - 0.4 * refits.clamps), 0.32, 1);
 
   // Ballast: holding W vents it (the diver rises), S floods it (the diver sinks).
-  const pumpRate = PLAYER.ballastRate * (1 + 0.45 * refits.pump);
+  const pumpRate = PLAYER.ballastRate * (1 + 0.45 * refits.pump) * (tools?.pumpScale ?? 1);
   player.ballast = clamp(player.ballast + intent.ballast * pumpRate * dt, 0, 1);
 
   let ax = 0;
@@ -111,15 +112,17 @@ export function stepPlayer(player, dt, intent, cargo, refits) {
   }
 
   player.depth = Math.max(0, player.y) / TRENCH.pxPerMetre;
-  const drain = (OXYGEN.drain + player.depth * OXYGEN.drainPerMetre) * (1 + 0.12 * refits.servo);
+  const drain = (OXYGEN.drain + player.depth * OXYGEN.drainPerMetre) * (1 + 0.12 * refits.servo) * oxygenScale;
   player.oxygen = Math.max(0, player.oxygen - drain * dt);
 
   // Ascent pressure: venting hard is the fast way up and the way to a bend. Under the safe
   // rate the body recovers; over it the bend builds and then the hull seams complain.
   const rise = Math.max(0, -player.vy);
+  const safeRate = PRESSURE.safeRate * (tools?.safeAscentScale ?? 1);
   player.ascentRate = rise;
-  if (rise > PRESSURE.safeRate) {
-    player.bend = Math.min(1, player.bend + ((rise - PRESSURE.safeRate) / PRESSURE.safeRate) * PRESSURE.bendRate * dt);
+  player.safeRate = safeRate;
+  if (rise > safeRate) {
+    player.bend = Math.min(1, player.bend + ((rise - safeRate) / safeRate) * PRESSURE.bendRate * dt);
   } else {
     player.bend = Math.max(0, player.bend - PRESSURE.recoverRate * dt);
   }
