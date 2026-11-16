@@ -36,8 +36,8 @@ for byte the kit's). `/output` is the grader's path; `MAKEFUN_OUTPUT_DIR` stands
 ## Test it
 
 ```bash
-node test/logic.test.mjs                  # 19 headless fixed-step tests over the real simulation
-xvfb-run -a python3 test/browser_test.py  # 28 real-browser tests (Playwright + Firefox, headed)
+node test/logic.test.mjs                  # 27 headless fixed-step tests over the real simulation
+xvfb-run -a python3 test/browser_test.py  # 36 real-browser tests (Playwright + Firefox, headed)
 xvfb-run -a python3 tools/capture.py      # re-shoot the four entry screenshots
 /usr/bin/python3 tools/verify_shots.py     # gate limits, luminance and a text preview per shot
 node tools/gate_check.mjs                 # the gate rows, checked against out/ (run main.ts first)
@@ -59,7 +59,7 @@ simulation through `window.__lumen` (fixed step, `?manual=1`), not a mock.
 | hold E | cut the nearest salvage piece free while tethered |
 | F | lamp on/off: it lights the wreck, and it wakes the lures |
 | P / Esc | pause |
-| 1 / 2 / 3 or click | choose a refit after surfacing |
+| 1 / 2 / 3 or click | choose a refit after surfacing (ten exist; three are trades) |
 | SPACE | start, restart, resume |
 | M | mute |
 
@@ -70,7 +70,8 @@ simulation through `window.__lumen` (fixed step, `?manual=1`), not a mock.
 2. **Grapple.** The hook flies 560 px at 1550 px/s and bites a wreck. Once attached a spring
    pulls you toward the anchor; the wreck answers 18% of the pull. A tether stretched 250 px
    past its rest length snaps.
-3. **Cut.** Hold E beside a piece: 1.35 s of cutting per piece, minus winch upgrades. Every cut
+3. **Cut.** Hold E beside a piece: 1.35 s of cutting per piece, minus winch and lens upgrades. Every piece cut
+   inside a 7.5 s window raises the salvage combo by 0.25, to x2.5; let the window lapse and it resets. Every cut
    costs the wreck one integrity. At zero the hull buckles and collapses 2.1 s later, damaging
    anything within 190 px and destroying the pieces still on it.
 4. **Carry.** Each piece has mass. Mass slows thrust and adds sink, so a rich hold is a slow,
@@ -83,6 +84,12 @@ Hazards are deterministic so they can be learned: lures patrol a figure-eight an
 when your lamp wakes them (they forget 1.8 s after it goes out, and a lure that lands a hit
 recoils for 2.4 s so a pack cannot chain-hit you), currents run in visible bands every 620 px,
 and collapsing hulls announce themselves with a shake and a warning line.
+
+Below 75 m the trench becomes the **Black Shelf**: currents are 55% stronger, wrecks spawn 42%
+denser, every piece pays 34% more, and two more hazards appear. **Silt vents** run an 8 s cycle
+and telegraph for 1.4 s before a 1.8 s upward blast that hurts and shoves. **Pressure wells**
+run a 9 s cycle, contracting their rings for 1.5 s before a 4 s pull; the outer ring is
+escapable, the 29 px core is not. Both are drawn on screen and both are on a fixed clock.
 
 The balance was set with `tools/autoplay.mjs`: a deliberately naive bot — nearest wreck,
 grapple, cut three, dodge, surface at 30% air — closes the contract on about one seed in five
@@ -102,9 +109,14 @@ game/src/world.js        dive state, spawn director, step composition, scoring
 game/src/player.js       ballast/buoyancy/thrust/oxygen/hull
 game/src/grapple.js      hook flight, tether spring, snaps, cutting
 game/src/wrecks.js       wreck build, drift, integrity, collapse
-game/src/hazards.js      lures and current bands
+game/src/hazards.js      lures: patrol, lamp-woken chase, recoil
+game/src/currents.js     current band generation and force sampling
+game/src/vents.js        silt vents: telegraph, blast, push
+game/src/pressure-wells.js  pressure wells: rest, warning, pull, core damage
+game/src/environment.js  depth bands: current, wreck density, salvage scale, hazard spawn
+game/src/economy.js      salvage combo: multiplier, decay window, payout
 game/src/salvage.js      value table, depth tiers, cargo mass
-game/src/upgrades.js     the seven refits
+game/src/upgrades.js     the ten refits (three are trades)
 game/src/particles.js    fixed pools for bubbles, silt, sparks, debris
 game/src/render.js       the scene painter, lamp cone included
 game/src/hud.js          oxygen, depth, cargo, hull, timers, prompts

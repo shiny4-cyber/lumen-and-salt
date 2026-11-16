@@ -36,9 +36,9 @@ export function resetPlayerForDive(player, refits) {
   player.vx = 0;
   player.vy = 0;
   player.ballast = 0.5;
-  player.oxygenMax = PLAYER.oxygen + refits.tank * 25;
+  player.oxygenMax = Math.max(45, PLAYER.oxygen + refits.tank * 25 - refits.deepHull * 25);
   player.oxygen = player.oxygenMax;
-  player.hullMax = PLAYER.hull + refits.plating * 25;
+  player.hullMax = PLAYER.hull + refits.plating * 25 + refits.deepHull * 40;
   player.hull = Math.min(player.hullMax, player.hull + refits.plating * 10);
   player.mercy = 1.2;
   player.hullFlash = 0;
@@ -60,7 +60,7 @@ export function stepPlayer(player, dt, intent, cargo, refits) {
 
   let ax = 0;
   let ay = 0;
-  ax += intent.thrust * PLAYER.thrust * clampFactor;
+  ax += intent.thrust * PLAYER.thrust * clampFactor * (1 + 0.18 * refits.servo);
   player.thrustLevel = Math.abs(intent.thrust);
   ay += (player.ballast - 0.5) * PLAYER.buoyancy;
   player.ballastLevel = (player.ballast - 0.5) * 2;
@@ -104,7 +104,7 @@ export function stepPlayer(player, dt, intent, cargo, refits) {
   }
 
   player.depth = Math.max(0, player.y) / TRENCH.pxPerMetre;
-  const drain = OXYGEN.drain + player.depth * OXYGEN.drainPerMetre;
+  const drain = (OXYGEN.drain + player.depth * OXYGEN.drainPerMetre) * (1 + 0.12 * refits.servo);
   player.oxygen = Math.max(0, player.oxygen - drain * dt);
   player.mercy = Math.max(0, player.mercy - dt);
   player.hullFlash = Math.max(0, player.hullFlash - dt * 2.4);

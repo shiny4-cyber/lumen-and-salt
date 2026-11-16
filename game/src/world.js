@@ -8,9 +8,14 @@ import { createParticles } from './particles.js';
 import { createPlayer, damagePlayer, isAtSurface, resetPlayerForDive, stepPlayer } from './player.js';
 import { createHook, releaseHook, stepGrapple } from './grapple.js';
 import { beginCollapse, collapseWreck, createWreck, nodeAt, stepWrecks } from './wrecks.js';
-import { createCurrents, createLure, currentAt, currentForce, stepLures } from './hazards.js';
+import { createLure, stepLures } from './hazards.js';
+import { createCurrents, currentAt, currentForce } from './currents.js';
+import { environmentForY, spawnGap } from './environment.js';
+import { createVent, stepVents } from './vents.js';
+import { createPressureWell, stepPressureWells } from './pressure-wells.js';
+import { createCombo, stepCombo, collectCombo, resetCombo } from './economy.js';
 import { cargoMass, cargoValue } from './salvage.js';
-import { createRefits, rollOffers } from './upgrades.js';
+import { createRefits, lureSenseScale, rollOffers } from './upgrades.js';
 
 export const EVENT_FIRE = 1;
 export const EVENT_ATTACH = 2;
@@ -22,6 +27,9 @@ export const EVENT_COLLAPSE = 64;
 export const EVENT_SURFACED = 128;
 export const EVENT_DEAD = 256;
 export const EVENT_WON = 512;
+export const EVENT_DEEP = 1024;
+export const EVENT_VENT = 2048;
+export const EVENT_WELL = 4096;
 
 export const PHASE_DIVE = 'dive';
 export const PHASE_SURFACED = 'surfaced';
@@ -57,6 +65,12 @@ export function createWorld(random) {
     messageTimer: 0,
     events: 0,
     currentBand: null,
+    vents: [],
+    wells: [],
+    combo: createCombo(),
+    environment: null,
+    deepSeen: false,
+    hitStop: 0,
   };
 
   world.reset = (seed) => {
@@ -72,6 +86,11 @@ export function createWorld(random) {
     world.flash = 0;
     world.message = '';
     world.messageTimer = 0;
+    world.vents = [];
+    world.wells = [];
+    world.combo = createCombo();
+    world.deepSeen = false;
+    world.hitStop = 0;
     world.startDive();
     // A new contract means a fresh boat: the hull from the last run does not carry over.
     world.player.hull = world.player.hullMax;
@@ -88,6 +107,10 @@ export function createWorld(random) {
     world.particles.clear();
     world.lastSpawnY = 340;
     world.currents = createCurrents(world.random, 120, TRENCH.floorY);
+    world.vents = [];
+    world.wells = [];
+    world.combo = createCombo();
+    world.environment = environmentForY(0);
     resetPlayerForDive(world.player, world.refits);
     world.particles.seedSilt(world.player.x, world.player.y + 300, 120);
     spawnAhead(world);
@@ -103,6 +126,18 @@ export function createWorld(random) {
     const lure = createLure(world.random, x, y);
     world.lures.push(lure);
     return lure;
+  };
+
+  world.spawnVentAt = (x, y, offset = 0) => {
+    const vent = createVent(x, y, offset);
+    world.vents.push(vent);
+    return vent;
+  };
+
+  world.spawnWellAt = (x, y, offset = 0) => {
+    const well = createPressureWell(x, y, offset);
+    world.wells.push(well);
+    return well;
   };
 
   world.toggleLamp = () => {
@@ -159,7 +194,20 @@ export function createWorld(random) {
     spawnAhead(world);
     const band = currentAt(world.currents, world.player.y);
     world.currentBand = band;
-    const current = currentForce(band, world.time);
+    const environment = environmentForY(world.player.y);
+    world.environment = environment;
+    if (!world.deepSeen && environment.id === 'black-shelf') {
+      world.deepSeen = true;
+      world.pushMessage('BLACK SHELF — stronger current, richer wrecks', 3);
+      events.mask |= EVENT_DEEP;
+    }
+    const base = currentForce(band, world.time);
+    const current = { x: base.x * environment.currentScale, y: base.y * environment.currentScale };
+    const well = stepPressureWells(world.wells, dt, world.player);
+    current.x += well.force.x;
+    current.y += well.force.y;
+    if (well.hits.length > 0) events.mask |= EVENT_WELL;
+    stepCombo(world.combo, dt);
 
     const grapple = stepGrapple(world, dt, intent);
     for (const event of grapple.events) {
@@ -175,6 +223,9 @@ export function createWorld(random) {
     }
     if (grapple.tether.x !== 0 || grapple.tether.y !== 0) events.mask |= 0;
 
+    const ventHits = stepVents(world.vents, dt, world.player);
+    if (ventHits.length > 0) events.mask |= EVENT_VENT;
+
     stepPlayer(world.player, dt, {
       thrust: intent.thrust,
       ballast: intent.ballast,
@@ -185,11 +236,13 @@ export function createWorld(random) {
     for (const freed of grapple.freeNodes) {
       const position = nodeAt(freed.wreck, freed.node);
       freed.node.free = true;
+      const paid = collectCombo(world.combo, freed.node.value, environment.salvageScale);
+      freed.node.value = paid;
       world.cargo.push({
         kind: freed.node.kind,
         label: freed.node.label,
         colour: freed.node.colour,
-        value: freed.node.value,
+        value: paid,
         mass: freed.node.mass,
         x: position.x,
         y: position.y,
@@ -233,7 +286,16 @@ export function createWorld(random) {
     }
     world.wrecks = world.wrecks.filter((wreck) => !wreck.dead || wreck.collapseTimer > 0);
 
-    const lureHits = stepLures(world.lures, dt, world.time, world.player, world.player.lampOn, 1 - 0.4 * world.refits.silent);
+    for (const hit of ventHits.concat(well.hits)) {
+      const dealt = damagePlayer(world.player, hit.damage);
+      if (dealt > 0) {
+        world.stats.hits += 1;
+        events.mask |= EVENT_HIT;
+        events.hit = dealt;
+        world.shake = Math.min(26, world.shake + 12);
+      }
+    }
+    const lureHits = stepLures(world.lures, dt, world.time, world.player, world.player.lampOn, lureSenseScale(world.refits));
     for (const hit of lureHits) {
       const dealt = damagePlayer(world.player, hit.damage);
       if (dealt > 0) {
@@ -292,7 +354,14 @@ function spawnAhead(world) {
     for (let index = 0; index < lures; index += 1) {
       world.lures.push(createLure(world.random, x + (world.random() - 0.5) * 620, world.lastSpawnY + (world.random() - 0.5) * 340));
     }
-    world.lastSpawnY += WRECK.minGap + world.random() * (WRECK.maxGap - WRECK.minGap);
+    const environment = environmentForY(world.lastSpawnY);
+    if (world.random() < environment.ventChance) {
+      world.vents.push(createVent(180 + world.random() * (TRENCH.width - 360), world.lastSpawnY + 140, world.random() * 8));
+    }
+    if (world.random() < environment.wellChance) {
+      world.wells.push(createPressureWell(220 + world.random() * (TRENCH.width - 440), world.lastSpawnY + 320, world.random() * 9));
+    }
+    world.lastSpawnY += spawnGap(environment, world.random);
   }
 }
 

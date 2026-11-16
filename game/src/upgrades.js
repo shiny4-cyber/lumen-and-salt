@@ -59,15 +59,39 @@ export const REFITS = [
       refits.clamps += 1;
     },
   },
+  {
+    id: 'servo',
+    name: 'Light servo',
+    blurb: '+18% thrust, but the motors burn 12% more air.',
+    apply(refits) {
+      refits.servo += 1;
+    },
+  },
+  {
+    id: 'deepHull',
+    name: 'Deep hull',
+    blurb: '+40 hull for the pressure, at 25 fewer seconds of air.',
+    apply(refits) {
+      refits.deepHull += 1;
+    },
+  },
+  {
+    id: 'sweep',
+    name: 'Sweep lens',
+    blurb: 'Cut range +30% and a faster cut, but lures notice the lamp 30% further.',
+    apply(refits) {
+      refits.sweep += 1;
+    },
+  },
 ];
 
 export function createRefits() {
-  return { tank: 0, winch: 0, plating: 0, lens: 0, silent: 0, pump: 0, clamps: 0 };
+  return { tank: 0, winch: 0, plating: 0, lens: 0, silent: 0, pump: 0, clamps: 0, servo: 0, deepHull: 0, sweep: 0 };
 }
 
-/** The share of the lamp's reach a lure still notices. */
+/** The share of the lamp's reach a lure still notices: a quiet propeller vs a sweep lens. */
 export function lureSenseScale(refits) {
-  return Math.max(0.25, 1 - 0.4 * refits.silent);
+  return Math.max(0.25, 1 - 0.4 * refits.silent + 0.3 * refits.sweep);
 }
 
 /** Three offers, never the same card twice, from a seeded generator. */

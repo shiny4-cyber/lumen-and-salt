@@ -135,6 +135,11 @@ export function createAudio() {
       const notes = [523.25, 659.25, 784, 1046.5, 1318.5];
       notes.forEach((freq, index) => tone({ freq, type: 'triangle', gain: 0.18, decay: 0.7, delay: index * 0.12 }));
     },
+    deep() {
+      tone({ freq: 92, endFreq: 58, type: 'sine', gain: 0.26, decay: 1.4 });
+      tone({ freq: 138, type: 'triangle', gain: 0.08, decay: 1.8, delay: 0.15 });
+      noise({ gain: 0.12, decay: 1.2, lowpass: 240 });
+    },
     dead() {
       tone({ freq: 220, endFreq: 40, type: 'sawtooth', gain: 0.3, decay: 1.2 });
       noise({ gain: 0.24, decay: 1.1, lowpass: 320 });

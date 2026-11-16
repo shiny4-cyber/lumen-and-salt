@@ -1,7 +1,7 @@
 // The HUD: oxygen, depth, cargo value, hull, the run clock and the contract total. It reads
 // the world and paints over the scene; it holds no state of its own beyond animation time.
 
-import { CONTRACT_TARGET, DIVE, PALETTE, TEXT, VIEW } from './config.js';
+import { CONTRACT_TARGET, DIVE, PALETTE, VIEW } from './config.js';
 import { cargoMass, cargoValue } from './salvage.js';
 import { clamp } from './mathx.js';
 
@@ -73,6 +73,27 @@ export function drawHud(ctx, world, view) {
   ctx.font = '11px "Consolas", monospace';
   ctx.fillText(`contract $${CONTRACT_TARGET}`, VIEW.width - 26, 126);
 
+  // The depth band the diver is in, named, so the environment change is legible.
+  const band = world.environment;
+  if (band) {
+    const deep = band.id === 'black-shelf';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = deep ? PALETTE.bio : PALETTE.muted;
+    ctx.font = 'bold 12px "Consolas", monospace';
+    ctx.fillText(band.label, VIEW.width / 2, 136);
+    // Combo: the multiplier, and how long it has left before it lapses.
+    if (world.combo.count > 1) {
+      const left = clamp(world.combo.timer / 7.5, 0, 1);
+      ctx.fillStyle = PALETTE.amberHot;
+      ctx.font = 'bold 18px "Consolas", monospace';
+      ctx.fillText(`COMBO x${world.combo.multiplier.toFixed(2)}`, VIEW.width / 2, 164);
+      ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
+      ctx.fillRect(VIEW.width / 2 - 70, 172, 140, 6);
+      ctx.fillStyle = PALETTE.amber;
+      ctx.fillRect(VIEW.width / 2 - 69, 173, 138 * left, 4);
+    }
+  }
+
   // Tether tension, only while a line is out.
   const hook = world.hook;
   if (hook.state === 'attached') {
@@ -126,6 +147,22 @@ export function drawHud(ctx, world, view) {
     ctx.strokeRect(4, 4, VIEW.width - 8, VIEW.height - 8);
   }
 
+  // The dive-start sequence: a short banner over a frozen frame, then the diver is released.
+  if (view.intro > 0) {
+    const progress = clamp(1 - view.intro / 1.15, 0, 1);
+    ctx.globalAlpha = clamp(progress * 2.2, 0, 1);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = PALETTE.ink;
+    ctx.fillRect(0, VIEW.height / 2 - 74, VIEW.width, 116);
+    ctx.fillStyle = PALETTE.amberHot;
+    ctx.font = 'bold 40px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(`DIVE ${world.dive + 1}`, VIEW.width / 2, VIEW.height / 2 - 18);
+    ctx.fillStyle = PALETTE.text;
+    ctx.font = '16px "Consolas", monospace';
+    ctx.fillText(`ballast trimmed  ·  tank ${Math.round(player.oxygenMax)} s  ·  hull ${Math.round(player.hullMax)}`, VIEW.width / 2, VIEW.height / 2 + 16);
+    ctx.globalAlpha = 1;
+  }
+
   // The world's short messages (a hull buckling, a tether snapping) sit above the prompt.
   if (world.messageTimer > 0) {
     ctx.globalAlpha = clamp(world.messageTimer / 0.6, 0, 1);
@@ -156,4 +193,3 @@ export function formatTime(seconds) {
   return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
 }
 
-export { TEXT };

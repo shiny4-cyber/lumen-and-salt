@@ -52,19 +52,24 @@ export function createRenderer(canvas) {
     ctx.save();
     ctx.translate(shakeX, shakeY);
     drawWater(cam);
+    drawGodRays(world, cam);
     drawDepthMarks(cam);
     drawDistantHulls(cam);
     if (cam.y < 220) drawSurface(cam);
     drawCurrents(world, cam);
+    drawFarSilt(world, cam);
     drawSilt(world, cam);
     drawWrecks(world, cam);
+    drawVents(world, cam);
+    drawWells(world, cam);
     drawLures(world, cam);
     drawCargo(world, cam);
     drawHook(world, cam);
     drawPlayer(world, cam);
     drawParticles(world, cam);
     drawLamp(world, cam);
-    drawVignette();
+    drawEnvironmentTint(world);
+    drawVignette(world);
     ctx.restore();
   }
 
@@ -82,6 +87,13 @@ export function createRenderer(canvas) {
       if (GRADIENTS.size > 40) GRADIENTS.delete(GRADIENTS.keys().next().value);
     }
     ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    // Three soft horizontal haze bands give the column a sense of layered distance.
+    const haze = ctx.createLinearGradient(0, 0, 0, VIEW.height);
+    haze.addColorStop(0, 'rgba(12, 74, 88, 0.10)');
+    haze.addColorStop(0.5, 'rgba(4, 30, 40, 0.0)');
+    haze.addColorStop(1, 'rgba(2, 16, 22, 0.16)');
+    ctx.fillStyle = haze;
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
     // A slow caustic shimmer near the surface, gone by 60 m.
     const shimmer = clamp(1 - cam.y / 900, 0, 1);
@@ -184,6 +196,137 @@ export function createRenderer(canvas) {
       }
       ctx.restore();
     }
+  }
+
+  /** Slanted light shafts from the surface: only near the top, gone by about 70 m. */
+  function drawGodRays(world, cam) {
+    const strength = clamp(1 - cam.y / 1500, 0, 1);
+    if (strength <= 0.02) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let index = 0; index < 5; index += 1) {
+      const drift = Math.sin(world.time * 0.18 + index * 1.7) * 26;
+      const top = -120 - cam.y + index * 40;
+      const x = 120 + index * 250 + drift;
+      const width = 90 + (index % 3) * 40;
+      const gradient = ctx.createLinearGradient(x, top, x + 150, top + 900);
+      gradient.addColorStop(0, `rgba(150, 240, 226, ${0.16 * strength})`);
+      gradient.addColorStop(0.55, `rgba(120, 220, 210, ${0.07 * strength})`);
+      gradient.addColorStop(1, 'rgba(90, 200, 190, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x + width, top);
+      ctx.lineTo(x + width + 190, top + 980);
+      ctx.lineTo(x + 150, top + 980);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** The far silt layer: dimmer, slower, and parallaxed at half speed for depth. */
+  function drawFarSilt(world, cam) {
+    ctx.save();
+    ctx.fillStyle = PALETTE.silt;
+    for (let index = 0; index < 46; index += 1) {
+      const spanX = VIEW.width + 200;
+      const x = ((index * 271 + world.time * 7) % spanX) - 100;
+      const y = ((index * 173 + cam.y * 0.45 + world.time * 11) % (VIEW.height + 200)) - 100;
+      ctx.globalAlpha = 0.05 + (index % 5) * 0.012;
+      ctx.beginPath();
+      ctx.arc(x, y, 1 + (index % 3) * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** Silt vents: a quiet column at rest, a rising warning, then a bright upward blast. */
+  function drawVents(world, cam) {
+    for (const vent of world.vents) {
+      const x = vent.x - cam.x;
+      const y = vent.y - cam.y;
+      if (x < -140 || x > VIEW.width + 140 || y < -260 || y > VIEW.height + 120) continue;
+      ctx.save();
+      const heat = vent.phase === 'blast' ? 1 : vent.phase === 'warning' ? 0.55 : 0.12;
+      const gradient = ctx.createLinearGradient(x, y, x, y - vent.height);
+      gradient.addColorStop(0, `rgba(214, 196, 150, ${0.30 * heat})`);
+      gradient.addColorStop(1, 'rgba(180, 214, 200, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(x - vent.radius, y);
+      ctx.lineTo(x + vent.radius, y);
+      ctx.lineTo(x + vent.radius * 0.5, y - vent.height);
+      ctx.lineTo(x - vent.radius * 0.5, y - vent.height);
+      ctx.closePath();
+      ctx.fill();
+      // The mouth of the vent reads as rock, not water: a dark ellipse with a rim.
+      ctx.fillStyle = 'rgba(9, 26, 30, 0.95)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, vent.radius, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = vent.phase === 'warning' ? PALETTE.warn : vent.phase === 'blast' ? PALETTE.bad : 'rgba(120, 170, 168, 0.5)';
+      ctx.lineWidth = vent.phase === 'idle' ? 1.4 : 2.6;
+      ctx.stroke();
+      for (let index = 0; index < 7; index += 1) {
+        const rise = (world.time * (vent.phase === 'blast' ? 150 : 40) + index * 34) % vent.height;
+        ctx.globalAlpha = 0.25 * heat + 0.1;
+        ctx.fillStyle = PALETTE.silt;
+        ctx.beginPath();
+        ctx.arc(x + Math.sin(index + world.time) * 12, y - rise, 2 + (index % 3), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  /** Pressure wells: rings contracting toward a core; only the pull is dangerous. */
+  function drawWells(world, cam) {
+    for (const well of world.wells) {
+      const x = well.x - cam.x;
+      const y = well.y - cam.y;
+      if (x < -240 || x > VIEW.width + 240 || y < -240 || y > VIEW.height + 240) continue;
+      ctx.save();
+      const pulling = well.phase === 'pull';
+      const warning = well.phase === 'warning';
+      ctx.globalCompositeOperation = 'lighter';
+      for (let ring = 0; ring < 3; ring += 1) {
+        const cycle = pulling ? (world.time * 1.6 + ring / 3) % 1 : (ring + 1) / 4;
+        const radius = well.radius * (pulling ? 1 - cycle : cycle);
+        ctx.strokeStyle = pulling ? `rgba(174, 140, 255, ${0.35 * (1 - cycle)})` : `rgba(120, 160, 200, ${warning ? 0.3 : 0.14})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(6, radius), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      const core = ctx.createRadialGradient(x, y, 0, x, y, well.core * 2.4);
+      core.addColorStop(0, pulling ? 'rgba(24, 8, 40, 0.95)' : 'rgba(14, 22, 32, 0.8)');
+      core.addColorStop(1, 'rgba(10, 16, 24, 0)');
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(x, y, well.core * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = warning ? PALETTE.warn : pulling ? '#c9a6ff' : 'rgba(140, 170, 210, 0.6)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(x, y, well.core, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** The deep band is colder and violet; the upper trench stays teal. */
+  function drawEnvironmentTint(world) {
+    if (world.environment?.id !== 'black-shelf') return;
+    // A violet veil, not a dimmer: the band reads colder without going blind.
+    ctx.save();
+    ctx.fillStyle = 'rgba(58, 30, 92, 0.16)';
+    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(46, 24, 78, 0.10)';
+    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    ctx.restore();
   }
 
   function drawSilt(world, cam) {
@@ -502,7 +645,8 @@ export function createRenderer(canvas) {
     if (!player.lampOn) return;
     const x = player.x - cam.x;
     const y = player.y - cam.y;
-    const reach = 540;
+    const deep = world.environment?.id === 'black-shelf';
+    const reach = deep ? 510 : 540;
     const half = 0.46;
     const angle = player.aim;
     ctx.save();
@@ -517,6 +661,16 @@ export function createRenderer(canvas) {
     ctx.arc(x, y, reach, angle - half, angle + half);
     ctx.closePath();
     ctx.fill();
+    // A wide, weak outer cone softens the edge of the beam (lamp falloff).
+    const outer = ctx.createRadialGradient(x, y, reach * 0.4, x, y, reach * 1.25);
+    outer.addColorStop(0, 'rgba(255, 190, 120, 0.10)');
+    outer.addColorStop(1, 'rgba(255, 170, 90, 0)');
+    ctx.fillStyle = outer;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, reach * 1.25, angle - half * 1.5, angle + half * 1.5);
+    ctx.closePath();
+    ctx.fill();
     // A hot core right at the lens.
     const core = ctx.createRadialGradient(x, y, 0, x, y, 70);
     core.addColorStop(0, 'rgba(255, 236, 200, 0.4)');
@@ -528,11 +682,19 @@ export function createRenderer(canvas) {
     ctx.restore();
   }
 
-  function drawVignette() {
+  function drawVignette(world) {
+    const deep = world?.environment?.id === 'black-shelf' ? 0.08 : 0;
     const gradient = ctx.createRadialGradient(VIEW.width * 0.5, VIEW.height * 0.52, VIEW.height * 0.28, VIEW.width * 0.5, VIEW.height * 0.5, VIEW.height * 0.95);
     gradient.addColorStop(0, 'rgba(1, 10, 12, 0)');
-    gradient.addColorStop(1, 'rgba(1, 8, 10, 0.42)');
+    gradient.addColorStop(1, `rgba(1, 8, 10, ${0.42 + deep})`);
     ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    // Three soft horizontal haze bands give the column a sense of layered distance.
+    const haze = ctx.createLinearGradient(0, 0, 0, VIEW.height);
+    haze.addColorStop(0, 'rgba(12, 74, 88, 0.10)');
+    haze.addColorStop(0.5, 'rgba(4, 30, 40, 0.0)');
+    haze.addColorStop(1, 'rgba(2, 16, 22, 0.16)');
+    ctx.fillStyle = haze;
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   }
 

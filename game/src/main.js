@@ -10,7 +10,7 @@
 import { BEST_KEY, MUTE_KEY, STEP } from './config.js';
 import { createRandom } from './random.js';
 import { createWorld } from './world.js';
-import { EVENT_ATTACH, EVENT_COLLAPSE, EVENT_CUT, EVENT_DEAD, EVENT_FIRE, EVENT_HIT, EVENT_RELEASE, EVENT_SALVAGE, EVENT_SURFACED, EVENT_WON, PHASE_DEAD, PHASE_SURFACED, PHASE_WON } from './world.js';
+import { EVENT_ATTACH, EVENT_COLLAPSE, EVENT_DEEP, EVENT_DEAD, EVENT_FIRE, EVENT_HIT, EVENT_RELEASE, EVENT_SALVAGE, EVENT_SURFACED, EVENT_WON, PHASE_DEAD, PHASE_SURFACED, PHASE_WON } from './world.js';
 import { createRenderer } from './render.js';
 import { ACTION_CHOOSE_1, ACTION_CHOOSE_2, ACTION_CHOOSE_3, ACTION_CONFIRM, ACTION_LAMP, ACTION_MUTE, ACTION_PAUSE, createInput } from './input.js';
 import { createAudio } from './audio.js';
@@ -101,6 +101,10 @@ function runGame() {
   let aim = { x: world.player.x + 220, y: world.player.y };
   let override = null;
   let uiTime = 0;
+  /** The short dive-start sequence: the hatch closes, then the diver is released. */
+  let introTimer = 0;
+  /** Impact hit-stop, in seconds: a few frames of freeze make a hit land. */
+  let hitStop = 0;
 
   world.reset(seed);
   world.titleScene();
@@ -115,6 +119,8 @@ function runGame() {
     cameraY = renderer.camera(world).y;
     cameraX = renderer.camera(world).x;
     screen = SCREEN_PLAY;
+    introTimer = 1.15;
+    hitStop = 0;
     announce('Dive started.');
   }
 
@@ -136,6 +142,8 @@ function runGame() {
     audio.play('refit');
     world.startDive();
     accumulator = 0;
+    introTimer = 0.9;
+    hitStop = 0;
     cameraY = renderer.camera(world).y;
     screen = SCREEN_PLAY;
     announce(`Refit: ${offer.name}. Next dive.`);
@@ -201,6 +209,16 @@ function runGame() {
       return;
     }
     if (screen !== SCREEN_PLAY) return;
+    if (introTimer > 0) {
+      // The diver hangs at the gate: water moves, the run clock does not.
+      introTimer = Math.max(0, introTimer - dt);
+      world.particles.step(dt, world.player.x, world.player.y, 0);
+      return;
+    }
+    if (hitStop > 0) {
+      hitStop = Math.max(0, hitStop - dt);
+      return;
+    }
     const intent = currentIntent();
     world.player.aim = Math.atan2(intent.aimY - world.player.y, intent.aimX - world.player.x);
     const result = world.step(dt, intent);
@@ -215,7 +233,7 @@ function runGame() {
     if (result.mask & EVENT_RELEASE) audio.play('release');
     if (result.mask & EVENT_SALVAGE) {
       audio.play('salvage');
-      announce('Salvage cut free.');
+      announce(world.combo.count > 1 ? `Salvage cut free. Combo ${world.combo.multiplier.toFixed(2)}.` : 'Salvage cut free.');
     }
     if (result.mask & EVENT_COLLAPSE) {
       audio.play('collapse');
@@ -223,7 +241,12 @@ function runGame() {
     }
     if (result.mask & EVENT_HIT) {
       audio.play('damage');
+      hitStop = 0.07;
       announce(`Hull hit. ${Math.ceil(world.player.hull)} percent left.`);
+    }
+    if (result.mask & EVENT_DEEP) {
+      audio.play('deep');
+      announce('Entering the Black Shelf.');
     }
     if (result.cutting && Math.random() < 0.25) audio.play('cut');
 
@@ -261,6 +284,7 @@ function runGame() {
         reason: deathReason,
         muted,
         newBest,
+        intro: introTimer,
       });
       return;
     }
@@ -279,6 +303,7 @@ function runGame() {
       reason: deathReason,
       muted,
       newBest,
+      intro: introTimer,
     });
     audio.setThruster(0, 0, screen === SCREEN_PLAY);
   }
@@ -333,6 +358,12 @@ function runGame() {
       wrecks: world.wrecks.length,
       lures: world.lures.length,
       stats: { ...world.stats },
+      environment: world.environment?.id ?? 'upper-trench',
+      combo: world.combo.count,
+      multiplier: Number(world.combo.multiplier.toFixed(2)),
+      vents: world.vents.length,
+      wells: world.wells.length,
+      intro: Number(introTimer.toFixed(2)),
       best,
       offers: world.offers.map((offer) => offer.id),
     }),
@@ -341,7 +372,7 @@ function runGame() {
       const steps = Math.max(1, Math.round(seconds / STEP));
       for (let index = 0; index < steps; index += 1) tick(STEP);
       followCamera(seconds);
-      paint({ screen, camera, time: world.time, best, reason: deathReason, muted, newBest });
+      paint({ screen, camera, time: world.time, best, reason: deathReason, muted, newBest, intro: introTimer });
     },
     setIntent: (intent) => {
       override = { thrust: 0, ballast: 0, grapple: false, cut: false, aimX: world.player.x, aimY: world.player.y + 100, ...override, ...intent };

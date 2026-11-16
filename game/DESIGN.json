@@ -2,7 +2,7 @@
   "title": "LUMEN & SALT",
   "genre": "2D risk/reward diving game (canvas 2D, no library)",
   "oneLine": "Pilot a tethered bathyscaphe down the Halcyon Trench: grapple drifting wrecks, cut the salvage free, mind the weight of it, and surface before the air runs out.",
-  "goal": "Surface with $1,500 banked to close the salvage contract. Every dive you choose how deep to go and when to turn back; a deeper wreck pays more and costs more air and more risk.",
+  "goal": "Surface with $1,500 banked to close the salvage contract. Every dive you choose how deep to go and when to turn back; below 75 m the Black Shelf pays more per piece and costs more air, more current and its own hazards.",
   "loseCondition": "Run ends when hull integrity or oxygen reaches zero. Both are shown in the HUD, and both are finite.",
   "winCondition": "Bank $1,500 across any number of dives and the contract-complete screen appears.",
   "controls": {
@@ -23,12 +23,18 @@
     "wrecks": "Each wreck holds 2-4 pieces and 2+tier integrity. Every cut frees a piece and costs integrity; at zero the hull buckles and collapses after 2.1 s, damaging anything inside 190 px and destroying the pieces still attached.",
     "lures": "Bioluminescent drifters on a deterministic patrol. The lamp wakes one within 380 px and it chases at 122 px/s; with the lamp off it forgets the diver in 2.4 s.",
     "currents": "Bands every 620 px push the diver and nudge the wrecks, drawn as streaks so they can be read before entering.",
-    "refits": "Seven upgrades offered three at a time after each surfacing: long tank, geared winch, hull plating, amber lens, silent propeller, fast ballast pump, cargo clamps.",
-    "score": "Banked dollars are the score. The best haul is kept in localStorage and shown on the title and end screens."
+    "refits": "Ten refits, three offered after each surfacing. Three of them are trades, not upgrades: Light servo (+18% thrust, +12% air burn), Deep hull (+40 hull, -25 s of air) and Sweep lens (+30% cut range and +15% cut speed, but lures notice the lamp 30% further).",
+    "score": "Banked dollars are the score. The best haul is kept in localStorage and shown on the title and end screens.",
+    "environmentBands": "Two depth bands. Above 75 m is the UPPER TRENCH; at 75 m and below the water becomes the BLACK SHELF: currents scale x1.55, wrecks spawn 42% denser (spawnGap), salvage pays x1.34, silt vents and pressure wells start spawning, and the renderer tints the water violet and pulls the lamp back to 510 px.",
+    "siltVents": "Telegraphed columns on an 8 s cycle: 4.8 s idle, 1.4 s warning (the mouth turns amber and silt rises), 1.8 s blast (an upward plume 220 px tall and 96 px wide). Inside the plume the diver takes 10 damage and is pushed up 190 px/s. No random damage: the warning is the window to cross or steer round.",
+    "pressureWells": "A 9 s cycle: 3.5 s rest, 1.5 s warning (rings contract), 4 s pull. Inside the 180 px radius the well adds a pull toward its core, strongest at the centre; a diver inside the 29 px core takes 14 damage. The outer ring is always escapable with thrust, so it is a positioning hazard, not a coin flip.",
+    "combo": "Each piece cut inside a 7.5 s window raises the multiplier by 0.25, to x2.5. The window decays in real time, so a combo is only worth chasing while the wreck is safe; the HUD shows the multiplier and the time left.",
+    "feel": "Held input is sampled every frame; a tap of E or the mouse is buffered for 130 ms so a press shorter than a fixed step is never lost. A 1.15 s dive-start sequence holds the diver at the hatch (the run clock does not advance) with the tank and hull read out. Hits trigger a 70 ms hit-stop, a hull flash and shake."
   },
   "loop": [
     "Title screen: goal, controls, best haul.",
-    "Dive: descend, grapple a wreck, cut salvage free, dodge lures, read the currents, decide when the air budget says surface.",
+    "Dive-start sequence: the hatch holds for 1.15 s, then the diver is released.",
+    "Dive: descend, read the band (the Black Shelf is richer and rougher), grapple a wreck, cut salvage free, hold the combo, dodge lures, read vents and wells, manage ballast and air, decide when to surface.",
     "Surface: cargo is banked, the haul is added to the contract total.",
     "Refit screen: one of three upgrades, then the next, deeper dive.",
     "Contract complete at $1,500, or a run over screen on hull breach or an empty tank; SPACE restarts instantly."
@@ -41,9 +47,9 @@
     "game/src/player.js": "bathyscaphe physics: ballast, buoyancy, thrust, drag, oxygen, hull",
     "game/src/grapple.js": "hook flight, tether spring tension and snap, cut progress",
     "game/src/wrecks.js": "wreck construction, drift, integrity, collapse",
-    "game/src/hazards.js": "lures and current bands",
+    "game/src/hazards.js": "lures: patrol, lamp-woken chase, recoil after a hit",
     "game/src/salvage.js": "salvage table, depth-tier value, cargo mass",
-    "game/src/upgrades.js": "the seven refits and the offer roll",
+    "game/src/upgrades.js": "the ten refits (seven straight upgrades, three trades) and the offer roll",
     "game/src/particles.js": "bubbles, silt, sparks and debris pools",
     "game/src/render.js": "scene painter: water, depth marks, wrecks, lures, tether, diver, lamp cone",
     "game/src/hud.js": "HUD: oxygen, hull, depth, cargo, banked, tether tension, timers, prompts",
@@ -53,16 +59,23 @@
     "game/src/audio.js": "WebAudio synthesis: no audio files, every cue generated",
     "game/src/random.js": "seeded mulberry32 generator",
     "game/src/mathx.js": "clamp, lerp, approach, vectors, angles",
-    "main.ts": "the entrypoint: copies game/ and screenshots/ to /output and writes dossier.json"
+    "main.ts": "the entrypoint: copies game/ and screenshots/ to /output and writes dossier.json",
+    "game/src/environment.js": "depth bands: current scale, wreck density, salvage scale, hazard spawn chances",
+    "game/src/currents.js": "current band generation and force sampling",
+    "game/src/vents.js": "silt vents: telegraph, blast, push",
+    "game/src/pressure-wells.js": "pressure wells: rest, warning, pull, and core damage",
+    "game/src/economy.js": "salvage combo: multiplier, decay window, value payout"
   },
   "performance": {
     "step": "fixed 1/60 s; rendering is separate and reads the state",
-    "pools": "particles are fixed-size pools, no per-frame allocation of objects in the hot loop"
+    "pools": "particles are fixed-size pools, no per-frame allocation of objects in the hot loop",
+    "hazards": "vents and wells are stepped in the fixed step; each is O(1) per instance and capped by spawn density"
   },
   "originality": "All names, art, sound and systems are written for this entry: no engine, no library, no sampled audio or borrowed art.",
   "testing": {
-    "logic": "node test/logic.test.mjs — headless fixed-step tests over oxygen, tether, grapple, cutting, weight, hazards, ascent, score, refits and restart",
-    "browser": "python3 test/browser_test.py — Playwright/Firefox under Xvfb against a local static server: start, move, grapple, cut, take damage, surface, refit, restart, menus, zero page errors",
-    "capture": "python3 tools/capture.py — the four screenshots, from the same static server"
+    "logic": "node test/logic.test.mjs \u2014 headless fixed-step tests over oxygen, tether, grapple, cutting, weight, hazards, ascent, score, refits and restart",
+    "browser": "python3 test/browser_test.py \u2014 Playwright/Firefox under Xvfb against a local static server: start, move, grapple, cut, take damage, surface, refit, restart, menus, zero page errors",
+    "capture": "python3 tools/capture.py \u2014 the four screenshots, from the same static server",
+    "tuning": "node tools/autoplay.mjs 16 \u2014 a naive bot plays 16 seeds; the pass keeps it beatable but not free"
   }
 }

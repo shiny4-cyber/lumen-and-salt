@@ -89,7 +89,11 @@ def main():
             state = debug()
             check("Space starts a dive", state["screen"] == "play", state["screen"])
             check("dive starts on the surface with a full tank", state["depth"] < 5 and state["oxygen"] > 100, json.dumps(state))
-            start_oxygen = state["oxygen"]
+            check("the dive-start sequence runs before the diver is released", state["intro"] > 0, f"intro {state['intro']}")
+            check("the run starts in the upper trench", state["environment"] == "upper-trench", state["environment"])
+            advance(1.4)
+            check("the dive-start sequence releases the diver", debug()["intro"] == 0, f"intro {debug()['intro']}")
+            start_oxygen = debug()["oxygen"]
 
             # The mechanic tests run in clear water: lures are spun up again for the hazard test.
             page.evaluate("() => { window.__lumen.world.lures = []; }")
@@ -139,9 +143,24 @@ def main():
                     cut = debug()
                     check("cutting frees a piece into the hold", cut["cargo"] >= 1, json.dumps({"trace": trace, "stats": cut["stats"]}))
                     check("the freed piece carries value", cut["cargoValue"] > cut["banked"], f"value {cut['cargoValue']}")
+                    check("a cut starts the salvage combo", cut["combo"] >= 1 and cut["multiplier"] >= 1, f"combo {cut['combo']} x{cut['multiplier']}")
                 else:
                     check("cutting frees a piece into the hold", False, "no salvage node on the wreck")
                     check("the freed piece carries value", False, "no salvage node on the wreck")
+
+            # --- new hazards and the deep band -------------------------------------------
+            page.evaluate("() => { const w = window.__lumen.world; w.player.mercy = 0; w.player.hull = 100; const v = w.spawnVentAt(w.player.x, w.player.y + 40, 6.3); v.clock = 6.3; }")
+            vent_before = debug()["hull"]
+            advance(0.3)
+            vented = debug()
+            check("a silt vent blast damages the diver", vented["hull"] < vent_before, f"{vent_before} -> {vented['hull']}")
+            page.evaluate("() => window.__lumen.teleport(700, 3200)")
+            advance(0.2)
+            deep = debug()
+            check("the trench switches to the Black Shelf band", deep["environment"] == "black-shelf", deep["environment"])
+            check("the deep band spawns its hazards", deep["vents"] + deep["wells"] > 0, f"vents {deep['vents']} wells {deep['wells']}")
+            refit_keys = page.evaluate("() => Object.keys(window.__lumen.world.refits)")
+            check("the new refits exist in the run state", all(key in refit_keys for key in ("servo", "deepHull", "sweep")), ",".join(refit_keys))
 
             # --- hazard damage -----------------------------------------------------------
             intent(ballast=0.0, grapple=False, cut=False)
@@ -186,13 +205,17 @@ def main():
             advance(0.1)
             check("F switches the lamp", debug()["lamp"] != lamp_before, "lamp unchanged")
 
+            # Clear the dive-start gate before the scripted deaths: the diver is not in the
+            # water (and cannot be hurt) until the hatch opens.
+            advance(1.4)
+
             # --- death and restart -------------------------------------------------------
             page.evaluate("() => { window.__lumen.world.player.hull = 0; window.__lumen.world.player.oxygen = 50; }")
             advance(0.2)
             over = debug()
             check("a broken hull ends the run", over["screen"] == "over", over["screen"])
             page.keyboard.press("Space")
-            advance(0.3)
+            advance(2.4)
             restarted = debug()
             check("Space restarts instantly", restarted["screen"] == "play" and restarted["dive"] == 0, json.dumps(restarted))
             check("a restart clears the haul", restarted["banked"] == 0 and restarted["cargo"] == 0, json.dumps(restarted))
@@ -201,7 +224,7 @@ def main():
             # --- win screen --------------------------------------------------------------
             page.evaluate("() => { const w = window.__lumen.world; w.banked = 1490; w.cargo.push({ kind: 'relic', label: 'relic', colour: '#7ef0c8', value: 40, mass: 2.8, x: w.player.x, y: w.player.y, phase: 0, spin: 0 }); w.player.y = -90; w.time = 5; }")
             intent(ballast=0.0)
-            advance(0.4)
+            advance(1.4)
             won = debug()
             check("banking the contract target wins the run", won["screen"] == "won", won["screen"])
 

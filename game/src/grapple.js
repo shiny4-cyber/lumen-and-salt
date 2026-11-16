@@ -137,12 +137,12 @@ export function stepGrapple(state, dt, intent) {
   }
 
   if (intent.cut) {
-    const node = nearestFreeNode(wreck, player, CUT.range * (1 + 0.15 * state.refits.winch));
+    const node = nearestFreeNode(wreck, player, CUT.range * (1 + 0.15 * state.refits.winch + 0.3 * state.refits.sweep));
     if (node) {
       // Progress lives on the piece, not on the hook: drifting to another piece never throws
       // away work already done, and letting go for a moment does not reset the cut.
       hook.cutNode = node;
-      node.cut = Math.min(1, node.cut + (dt / CUT.seconds) * (1 + 0.35 * state.refits.winch));
+      node.cut = Math.min(1, node.cut + (dt / CUT.seconds) * (1 + 0.35 * state.refits.winch + 0.15 * state.refits.sweep));
       hook.cutProgress = node.cut;
       events.push({ type: 'cutting', x: player.x + (nodeAt(wreck, node).x - player.x) * 0.6, y: player.y + (nodeAt(wreck, node).y - player.y) * 0.6 });
       if (node.cut >= 1) {

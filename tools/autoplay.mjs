@@ -35,6 +35,20 @@ function intentFor(world) {
     .filter((lure) => lure.awake > 0 && Math.hypot(lure.x - player.x, lure.y - player.y) < 260)
     .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y))[0];
   player.lampOn = !(threat && Math.hypot(threat.x - player.x, threat.y - player.y) < 180);
+  // Vents telegraph and wells ring: the bot reads both, the way a player can.
+  const vent = world.vents
+    .filter((entry) => entry.phase !== 'idle' && Math.abs(entry.x - player.x) < 110 && player.y > entry.y - 260 && player.y < entry.y + 40)
+    .sort((a, b) => Math.abs(a.y - player.y) - Math.abs(b.y - player.y))[0];
+  const well = world.wells
+    .filter((entry) => entry.phase === 'pull' && Math.hypot(entry.x - player.x, entry.y - player.y) < entry.radius)
+    .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y))[0];
+  if (vent || well) {
+    const source = vent ?? well;
+    const dx = player.x - source.x;
+    const dy = player.y - source.y;
+    const length = Math.hypot(dx, dy) || 1;
+    return { thrust: Math.max(-1, Math.min(1, dx / length)), ballast: vent ? -0.6 : dy > 0 ? 0.5 : -0.5, grapple: false, cut: false, aimX: player.x + dx, aimY: player.y + dy };
+  }
   if (threat) {
     const dx = player.x - threat.x;
     const dy = player.y - threat.y;

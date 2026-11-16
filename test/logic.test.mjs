@@ -2,12 +2,16 @@
 // Run with `node test/logic.test.mjs`. Every case is a regression: the run prints one row per
 // test and exits non-zero on any failure.
 
-import { CONTRACT_TARGET, GRAPPLE, PLAYER, WRECK } from '../game/src/config.js';
+import { CONTRACT_TARGET, CUT, GRAPPLE, PLAYER, WRECK } from '../game/src/config.js';
+import { environmentForDepth, environmentForY, spawnGap } from '../game/src/environment.js';
+import { collectCombo, createCombo, stepCombo } from '../game/src/economy.js';
+import { lureSenseScale } from '../game/src/upgrades.js';
 import { createRandom } from '../game/src/random.js';
 import { createWorld, EVENT_DEAD, EVENT_HIT, EVENT_SALVAGE, PHASE_DEAD, PHASE_DIVE, PHASE_SURFACED, PHASE_WON } from '../game/src/world.js';
 import { applyRefit } from '../game/src/upgrades.js';
 import { cargoMass } from '../game/src/salvage.js';
 import { anchorAt } from '../game/src/wrecks.js';
+import { nearestFreeNode } from '../game/src/grapple.js';
 
 const rows = [];
 function test(name, fn) {
@@ -38,6 +42,9 @@ function freshWorld(seed = 7) {
 function clearField(world) {
   world.wrecks = [];
   world.lures = [];
+  world.vents = [];
+  world.wells = [];
+  world.currents = [];
 }
 
 function stepWorld(world, seconds, intent) {
@@ -330,6 +337,129 @@ test('the same seed builds the same run', () => {
     world.lures.map((lure) => [lure.x, lure.y]),
   ]);
   assert(snap(a) === snap(b), 'two runs of the same seed diverged');
+});
+
+test('a silt vent telegraphs, then damages only inside its plume', () => {
+  const world = freshWorld(31);
+  clearField(world);
+  world.vents = [];
+  world.player.x = 800;
+  world.player.y = 1200;
+  world.player.hull = 100;
+  world.player.mercy = 0;
+  const vent = world.spawnVentAt(800, 1240, 1.0);
+  stepWorld(world, 0.5);
+  assert(world.player.hull === 100, `the idle vent hurt the diver: ${world.player.hull}`);
+  assert(vent.phase === 'idle', `phase ${vent.phase}`);
+  vent.clock = 6.3;
+  world.player.mercy = 0;
+  stepWorld(world, 0.2);
+  assert(vent.phase === 'blast', `phase ${vent.phase}`);
+  assert(world.player.hull < 100, 'the blast did not damage the diver');
+  assert(world.player.vy < 0, 'the blast did not push the diver up');
+});
+
+test('a pressure well pulls inside its ring and is inert at rest', () => {
+  const world = freshWorld(32);
+  clearField(world);
+  world.wells = [];
+  world.player.x = 700;
+  world.player.y = 1400;
+  world.player.ballast = 0.5;
+  world.player.oxygen = 999;
+  const well = world.spawnWellAt(800, 1400, 1.0);
+  const rest = Math.hypot(well.x - world.player.x, well.y - world.player.y);
+  stepWorld(world, 0.6);
+  near(Math.hypot(well.x - world.player.x, well.y - world.player.y), rest, 2, 'the resting well moved the diver');
+  well.clock = 6.0;
+  stepWorld(world, 1.2);
+  const pulled = Math.hypot(well.x - world.player.x, well.y - world.player.y);
+  assert(pulled < rest - 20, `the well did not pull: ${rest.toFixed(1)} -> ${pulled.toFixed(1)}`);
+});
+
+test('the trench changes band at 75 m, with denser wrecks and richer salvage', () => {
+  assert(environmentForDepth(40).id === 'upper-trench', 'upper band wrong');
+  assert(environmentForDepth(120).id === 'black-shelf', 'deep band wrong');
+  const deep = environmentForDepth(120);
+  const shallow = environmentForDepth(40);
+  assert(deep.salvageScale > shallow.salvageScale, 'deep salvage is not richer');
+  assert(deep.currentScale > shallow.currentScale, 'deep current is not stronger');
+  const random = () => 0.5;
+  assert(spawnGap(deep, random) < spawnGap(shallow, random), 'deep wrecks are not denser');
+  const world = freshWorld(33);
+  clearField(world);
+  world.player.y = 3000;
+  stepWorld(world, 1 / 60);
+  assert(world.environment.id === 'black-shelf', `world band ${world.environment.id}`);
+  assert(environmentForY(3000).label === 'BLACK SHELF', 'band label wrong');
+});
+
+test('a combo multiplies salvage and lapses when the diver stops cutting', () => {
+  const combo = createCombo();
+  const first = collectCombo(combo, 100, 1);
+  const second = collectCombo(combo, 100, 1);
+  const third = collectCombo(combo, 100, 1);
+  assert(first === 100, `first paid ${first}`);
+  assert(second === 125, `second paid ${second}`);
+  assert(third === 150, `third paid ${third}`);
+  stepCombo(combo, 7.6);
+  assert(combo.multiplier === 1 && combo.count === 0, 'the combo did not lapse');
+  const scaled = collectCombo(createCombo(), 100, 1.34);
+  assert(scaled === 134, `deep-band value ${scaled}`);
+});
+
+test('the light servo trades air for thrust', () => {
+  const plain = freshWorld(34);
+  const servo = freshWorld(34);
+  for (const world of [plain, servo]) {
+    clearField(world);
+    world.player.y = 600;
+    world.player.ballast = 0.5;
+    world.player.oxygen = 999;
+  }
+  applyRefit(servo.refits, 'servo');
+  stepWorld(plain, 0.4, { thrust: 1 });
+  stepWorld(servo, 0.4, { thrust: 1 });
+  assert(servo.player.vx > plain.player.vx * 1.1, `servo thrust ${servo.player.vx.toFixed(1)} vs ${plain.player.vx.toFixed(1)}`);
+  assert(servo.player.oxygen < plain.player.oxygen, 'servo did not burn extra air');
+});
+
+test('the deep hull trades air capacity for hull', () => {
+  const world = freshWorld(35);
+  clearField(world);
+  const oxygenBefore = world.player.oxygenMax;
+  const hullBefore = world.player.hullMax;
+  applyRefit(world.refits, 'deepHull');
+  world.startDive();
+  near(world.player.oxygenMax, oxygenBefore - 25, 0.001, 'deep hull oxygen');
+  near(world.player.hullMax, hullBefore + 40, 0.001, 'deep hull integrity');
+});
+
+test('the sweep lens reaches further but wakes lures sooner', () => {
+  const world = freshWorld(36);
+  clearField(world);
+  const wreck = world.spawnWreckAt(760, 900, 1);
+  const node = wreck.nodes.find((entry) => !entry.free);
+  const spot = { x: wreck.x + node.ox - 205, y: wreck.y + node.oy, radius: PLAYER.radius };
+  const plain = nearestFreeNode(wreck, spot, CUT.range);
+  const swept = nearestFreeNode(wreck, spot, CUT.range * 1.3);
+  assert(plain === null, 'the plain lamp reached a piece 205 px away');
+  assert(swept === node, 'the sweep lens did not reach the piece');
+  assert(lureSenseScale({ silent: 0, sweep: 0 }) === 1, 'the plain lamp changed the sensing range');
+  assert(lureSenseScale({ silent: 0, sweep: 1 }) > 1.2, 'the sweep did not widen lure attention');
+  assert(lureSenseScale({ silent: 1, sweep: 0 }) < 0.7, 'the silent propeller did not shorten it');
+});
+
+test('the deep band spawns its own hazards', () => {
+  const world = freshWorld(37);
+  clearField(world);
+  world.vents = [];
+  world.wells = [];
+  world.lastSpawnY = 2400;
+  world.player.y = 2400;
+  stepWorld(world, 0.5);
+  assert(world.vents.length + world.wells.length > 0, 'no deep-band hazard spawned');
+  assert(world.wrecks.length > 0, 'no deep-band wreck spawned');
 });
 
 // ---- report -------------------------------------------------------------------------------

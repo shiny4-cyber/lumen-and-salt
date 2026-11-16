@@ -26,6 +26,9 @@ export function createInput(canvas) {
   let pointerY = 360;
   let pointerHeld = false;
   let pointerInside = false;
+  // A tap shorter than the fixed step would otherwise fall between two ticks and vanish.
+  let cutBufferUntil = 0;
+  let grappleBufferUntil = 0;
 
   function isDown(codes) {
     for (const code of codes) if (held.has(code)) return true;
@@ -38,6 +41,8 @@ export function createInput(canvas) {
       return;
     }
     held.add(event.code);
+    if (CUT.has(event.code)) cutBufferUntil = performance.now() + 130;
+    if (CONFIRM.has(event.code)) grappleBufferUntil = performance.now() + 130;
     if (CONFIRM.has(event.code)) actions |= ACTION_CONFIRM;
     else if (PAUSE.has(event.code)) actions |= ACTION_PAUSE;
     else if (event.code === 'KeyF') actions |= ACTION_LAMP;
@@ -62,6 +67,7 @@ export function createInput(canvas) {
   });
   canvas.addEventListener('pointerdown', (event) => {
     pointerHeld = true;
+    grappleBufferUntil = performance.now() + 130;
     if (event.button === 2) actions |= ACTION_LAMP;
     event.preventDefault();
   });
@@ -80,10 +86,10 @@ export function createInput(canvas) {
       return (isDown(DOWN) ? 1 : 0) - (isDown(UP) ? 1 : 0);
     },
     grappleHeld() {
-      return pointerHeld || isDown(CONFIRM);
+      return pointerHeld || isDown(CONFIRM) || performance.now() < grappleBufferUntil;
     },
     cutHeld() {
-      return isDown(CUT) || isDown(CONFIRM);
+      return isDown(CUT) || performance.now() < cutBufferUntil;
     },
     /** The pointer in CSS pixels on the canvas, for aiming the lamp and the hook. */
     pointer() {

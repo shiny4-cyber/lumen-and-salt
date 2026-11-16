@@ -3,6 +3,7 @@
 // frame — and everything in the frame exists in the simulation, never painted in by hand.
 
 import { VIEW } from './config.js';
+import { environmentForY } from './environment.js';
 import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './screens.js';
 
 function settle(world, seconds, intent) {
@@ -98,43 +99,62 @@ export function stageShot(name, world) {
     world.banked = 235;
     world.lures.push(world.spawnLureAt(980, 1390));
     world.lures[0].awake = 1.4;
+    world.spawnVentAt(980, 1610, 5.4);
+    world.combo.count = 2;
+    world.combo.multiplier = 1.25;
+    world.combo.timer = 5.2;
     settle(world, 0.4, { thrust: 0, ballast: 0, grapple: true, cut: true, aimX: 760, aimY: 1480 });
     world.hook.cutProgress = 0.78;
     return { screen: SCREEN_PLAY, camera: { x: 120, y: 1190 }, best: 235, reason: null };
   }
 
-  // The cover: a deep working dive — tether under load, a lit wreck, a lure awake in the
-  // lamp cone, two pieces in the hold, HUD mid-run.
+  // The cover: the Black Shelf at ~90 m — a lit wreck under tether, a vent warning on the
+  // left, a pressure well pulling on the right, a lure awake in the lamp cone, a live combo
+  // in the HUD and two pieces in the hold. Everything in it is the real simulation.
   world.wrecks = [];
   world.lures = [];
-  const wreck = world.spawnWreckAt(880, 1620, 2);
-  world.spawnWreckAt(300, 2020, 3);
-  world.spawnWreckAt(1180, 1180, 1);
-  place(world, 604, 1584, 880, 1610);
-  attachTo(world, wreck, 0);
-  world.hook.cutProgress = 0.34;
-  world.hook.cutNode = wreck.nodes[1];
-  world.cargo.push({ kind: 'ingot', label: 'silver ingot', colour: '#bfd7e6', value: 162, mass: 2.2, x: 560, y: 1600, phase: 0.9, spin: 0.2 });
-  world.cargo.push({ kind: 'glass', label: 'amber glass', colour: '#f2b33d', value: 94, mass: 1.4, x: 548, y: 1590, phase: 2.4, spin: -0.2 });
-  world.player.aim = Math.atan2(1640 - 1584, 900 - 604);
-  world.player.oxygen = 68;
-  world.player.hull = 81;
-  world.banked = 310;
+  world.vents = [];
+  world.wells = [];
+  const shelfWreck = world.spawnWreckAt(900, 2760, 3);
+  world.spawnWreckAt(300, 3160, 3);
+  world.spawnWreckAt(1240, 2450, 2);
+  place(world, 604, 2720, 900, 2744);
+  attachTo(world, shelfWreck, 0);
+  world.hook.cutProgress = 0.52;
+  world.hook.cutNode = shelfWreck.nodes[1];
+  shelfWreck.nodes[1].cut = 0.52;
+  world.cargo.push({ kind: 'relic', label: 'trench relic', colour: '#7ef0c8', value: 214, mass: 2.8, x: 566, y: 2736, phase: 0.9, spin: 0.2 });
+  world.cargo.push({ kind: 'ingot', label: 'silver ingot', colour: '#bfd7e6', value: 138, mass: 2.2, x: 552, y: 2724, phase: 2.4, spin: -0.2 });
+  world.player.aim = Math.atan2(2790 - 2720, 930 - 604);
+  world.player.oxygen = 74;
+  world.player.hull = 78;
+  world.banked = 380;
   world.depthMax = 96;
-  world.time = 148;
-  const lureA = world.spawnLureAt(1010, 1560);
+  world.time = 231;
+  world.combo.count = 3;
+  world.combo.multiplier = 1.5;
+  world.combo.timer = 5.6;
+  world.environment = environmentForY(2720);
+  world.deepSeen = true;
+  const coverVent = world.spawnVentAt(360, 2860, 5.4);
+  const coverWell = world.spawnWellAt(1150, 2560, 6.3);
+  const lureA = world.spawnLureAt(1040, 2660);
   lureA.awake = 2.2;
-  const lureB = world.spawnLureAt(1180, 1760);
-  lureB.awake = 0.6;
-  world.spawnLureAt(250, 1900).awake = 0;
+  const lureB = world.spawnLureAt(760, 2900);
+  lureB.awake = 0.8;
+  world.spawnLureAt(220, 2600).awake = 0;
   for (let index = 0; index < 46; index += 1) {
-    world.particles.spawnBubble(560 + Math.sin(index * 2.3) * 40, 1560 + Math.cos(index * 1.7) * 46, 10, -30 - (index % 5) * 6, 2 + (index % 3));
+    world.particles.spawnBubble(560 + Math.sin(index * 2.3) * 40, 2960 + Math.cos(index * 1.7) * 46, 10, -30 - (index % 5) * 6, 2 + (index % 3));
   }
-  for (let index = 0; index < 24; index += 1) world.particles.spawnSpark(880 + Math.sin(index) * 40, 1600 + Math.cos(index) * 26, index % 4 ? 'amber' : 'dull');
-  settle(world, 0.3, { thrust: 0, ballast: 0, grapple: true, cut: true, aimX: 900, aimY: 1610 });
-  world.hook.cutProgress = 0.34;
-  world.hook.tension = 0.42;
-  return { screen: SCREEN_PLAY, camera: { x: 20, y: 1290 }, best: 310, reason: null };
+  for (let index = 0; index < 26; index += 1) world.particles.spawnSpark(900 + Math.sin(index) * 40, 2740 + Math.cos(index) * 26, index % 4 ? 'amber' : 'dull');
+  settle(world, 0.25, { thrust: 0, ballast: 0, grapple: true, cut: true, aimX: 920, aimY: 2750 });
+  coverVent.clock = 5.4;
+  coverWell.clock = 6.3;
+  coverVent.phase = 'warning';
+  coverWell.phase = 'pull';
+  world.hook.cutProgress = 0.52;
+  world.hook.tension = 0.46;
+  return { screen: SCREEN_PLAY, camera: { x: 20, y: 2420 }, best: 380, reason: null };
 }
 
 export { VIEW };
