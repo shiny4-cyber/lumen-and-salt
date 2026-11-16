@@ -88,7 +88,8 @@ def main():
             advance(0.2)
             state = debug()
             check("Space starts a dive", state["screen"] == "play", state["screen"])
-            check("dive starts on the surface with a full tank", state["depth"] < 5 and state["oxygen"] > 95, json.dumps(state))
+            check("dive starts on the surface with a full tank", state["depth"] < 5 and state["oxygen"] > 100, json.dumps(state))
+            start_oxygen = state["oxygen"]
 
             # The mechanic tests run in clear water: lures are spun up again for the hazard test.
             page.evaluate("() => { window.__lumen.world.lures = []; }")
@@ -97,8 +98,8 @@ def main():
             intent(ballast=1.0, thrust=0.0, grapple=False, cut=False)
             advance(3.0)
             descended = debug()
-            check("flooding ballast takes the diver down", descended["y"] > 300 and descended["depth"] > 15, json.dumps(descended))
-            check("oxygen drains while diving", descended["oxygen"] < 99, descended["oxygen"])
+            check("flooding ballast takes the diver down", descended["y"] > 300 and descended["depth"] > 10, json.dumps(descended))
+            check("oxygen drains while diving", descended["oxygen"] < start_oxygen - 1, f"{start_oxygen} -> {descended['oxygen']}")
 
             # --- lateral thrust ----------------------------------------------------------
             before_x = descended["x"]

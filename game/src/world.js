@@ -288,9 +288,9 @@ function spawnAhead(world) {
     const x = 240 + world.random() * (TRENCH.width - 480);
     const wreck = createWreck(world.random, x, world.lastSpawnY, tier);
     world.wrecks.push(wreck);
-    const lures = tier >= 2 ? 2 : 1;
+    const lures = tier >= 3 ? 2 : 1;
     for (let index = 0; index < lures; index += 1) {
-      world.lures.push(createLure(world.random, x + (world.random() - 0.5) * 320, world.lastSpawnY + (world.random() - 0.5) * 260));
+      world.lures.push(createLure(world.random, x + (world.random() - 0.5) * 620, world.lastSpawnY + (world.random() - 0.5) * 340));
     }
     world.lastSpawnY += WRECK.minGap + world.random() * (WRECK.maxGap - WRECK.minGap);
   }

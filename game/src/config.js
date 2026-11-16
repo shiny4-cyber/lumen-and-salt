@@ -12,7 +12,7 @@ export const TRENCH = {
   width: 1600,
   surfaceY: -120,
   floorY: 4600,
-  pxPerMetre: 20,
+  pxPerMetre: 30,
 };
 
 export const PLAYER = {
@@ -22,20 +22,20 @@ export const PLAYER = {
   maxSpeed: 430,
   ballastRate: 0.62,
   /** Buoyancy pushes up when ballast is vented (0) and down when flooded (1). */
-  buoyancy: 900,
+  buoyancy: 1000,
   /** Extra downward pull per unit of carried cargo mass. */
   cargoSink: 46,
   /** How much cargo mass slows the horizontal thrust (1 = none, 0 = stopped). */
   cargoDrag: 0.06,
   hull: 100,
-  oxygen: 100,
+  oxygen: 110,
   /** Seconds a hit of invulnerability lasts, so one lure cannot chain-hit. */
-  mercy: 1.15,
+  mercy: 1.4,
 };
 
 export const OXYGEN = {
-  drain: 0.62,
-  drainPerMetre: 0.0125,
+  drain: 0.55,
+  drainPerMetre: 0.01,
   /** Surfacing refills the tank; this is the reserve taken on top for a fresh dive. */
   breathOnSurface: 0,
 };
@@ -76,13 +76,15 @@ export const WRECK = {
 export const LURE = {
   radius: 14,
   speed: 44,
-  chaseSpeed: 122,
+  chaseSpeed: 96,
   /** The lamp cone wakes a lure this far away; the silent-propeller upgrade cuts it. */
-  senseRange: 380,
-  damage: 17,
+  senseRange: 300,
+  damage: 12,
   knockback: 240,
   /** A lure keeps chasing for this long after the lamp goes out. */
-  memory: 2.4,
+  memory: 1.8,
+  /** After a hit the lure recoils and sulks, so a pack cannot chain-hit the diver. */
+  stun: 2.4,
   glow: 26,
 };
 
@@ -94,10 +96,10 @@ export const CURRENT = {
 
 export const SALVAGE = {
   kinds: [
-    { id: 'coil', label: 'copper coil', value: 30, mass: 1.0, colour: '#e08b3c', radius: 9 },
-    { id: 'glass', label: 'amber glass', value: 55, mass: 1.4, colour: '#f2b33d', radius: 10 },
-    { id: 'ingot', label: 'silver ingot', value: 95, mass: 2.2, colour: '#bfd7e6', radius: 11 },
-    { id: 'relic', label: 'trench relic', value: 180, mass: 2.8, colour: '#7ef0c8', radius: 12 },
+    { id: 'coil', label: 'copper coil', value: 36, mass: 1.0, colour: '#e08b3c', radius: 9 },
+    { id: 'glass', label: 'amber glass', value: 66, mass: 1.4, colour: '#f2b33d', radius: 10 },
+    { id: 'ingot', label: 'silver ingot', value: 110, mass: 2.2, colour: '#bfd7e6', radius: 11 },
+    { id: 'relic', label: 'trench relic', value: 210, mass: 2.8, colour: '#7ef0c8', radius: 12 },
   ],
   /** Which kinds a wreck of each depth tier carries, with weights. */
   tiers: [

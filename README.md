@@ -36,10 +36,12 @@ for byte the kit's). `/output` is the grader's path; `MAKEFUN_OUTPUT_DIR` stands
 ## Test it
 
 ```bash
-node test/logic.test.mjs                 # 19 headless fixed-step tests over the real simulation
-xvfb-run -a python3 test/browser_test.py # 28 real-browser tests (Playwright + Firefox, headed)
-xvfb-run -a python3 tools/capture.py     # re-shoot the four entry screenshots
-/usr/bin/python3 tools/verify_shots.py    # gate limits, luminance and a text preview per shot
+node test/logic.test.mjs                  # 19 headless fixed-step tests over the real simulation
+xvfb-run -a python3 test/browser_test.py  # 28 real-browser tests (Playwright + Firefox, headed)
+xvfb-run -a python3 tools/capture.py      # re-shoot the four entry screenshots
+/usr/bin/python3 tools/verify_shots.py     # gate limits, luminance and a text preview per shot
+node tools/gate_check.mjs                 # the gate rows, checked against out/ (run main.ts first)
+node tools/autoplay.mjs 16                # a naive bot plays 16 seeds: the tuning probe
 ```
 
 The browser tests and the capture script need the interpreter whose Playwright knows the
@@ -63,8 +65,8 @@ simulation through `window.__lumen` (fixed step, `?manual=1`), not a mock.
 
 ## The loop
 
-1. **Dive.** Oxygen is the clock: 0.62/s plus 0.0125/s per metre. Deeper wrecks pay more
-   (depth tiers value the same piece at ×1 to ×2.2) and cost more air.
+1. **Dive.** Oxygen is the clock: 0.55/s plus 0.01/s per metre, from a 110-second tank. Deeper
+   wrecks pay more (depth tiers value the same piece at ×1 to ×2.2) and cost more air.
 2. **Grapple.** The hook flies 560 px at 1550 px/s and bites a wreck. Once attached a spring
    pulls you toward the anchor; the wreck answers 18% of the pull. A tether stretched 250 px
    past its rest length snaps.
@@ -78,8 +80,14 @@ simulation through `window.__lumen` (fixed step, `?manual=1`), not a mock.
 6. **Close the contract** at $1,500, or lose the boat to the hull or the air. SPACE restarts.
 
 Hazards are deterministic so they can be learned: lures patrol a figure-eight and only chase
-when your lamp wakes them (they forget 2.4 s after it goes out), currents run in visible bands
-every 620 px, and collapsing hulls announce themselves with a shake and a warning line.
+when your lamp wakes them (they forget 1.8 s after it goes out, and a lure that lands a hit
+recoils for 2.4 s so a pack cannot chain-hit you), currents run in visible bands every 620 px,
+and collapsing hulls announce themselves with a shake and a warning line.
+
+The balance was set with `tools/autoplay.mjs`: a deliberately naive bot — nearest wreck,
+grapple, cut three, dodge, surface at 30% air — closes the contract on about one seed in five
+and averages a few hundred dollars. A player who plans a route does better; the game never
+becomes free.
 
 ## Design and structure
 
