@@ -1,0 +1,12 @@
+{
+  "name": "lumen-and-salt",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Lumen and Salt: a tethered bathyscaphe dive game (static files under game/).",
+  "scripts": {
+    "serve": "node serve.ts",
+    "build": "mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts",
+    "test": "node test/logic.test.mjs"
+  }
+}

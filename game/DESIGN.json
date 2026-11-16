@@ -1,0 +1,68 @@
+{
+  "title": "LUMEN & SALT",
+  "genre": "2D risk/reward diving game (canvas 2D, no library)",
+  "oneLine": "Pilot a tethered bathyscaphe down the Halcyon Trench: grapple drifting wrecks, cut the salvage free, mind the weight of it, and surface before the air runs out.",
+  "goal": "Surface with $1,500 banked to close the salvage contract. Every dive you choose how deep to go and when to turn back; a deeper wreck pays more and costs more air and more risk.",
+  "loseCondition": "Run ends when hull integrity or oxygen reaches zero. Both are shown in the HUD, and both are finite.",
+  "winCondition": "Bank $1,500 across any number of dives and the contract-complete screen appears.",
+  "controls": {
+    "A / D or Left / Right": "lateral thrust; the bathyscaphe accelerates and coasts, no instant snap",
+    "W / S or Up / Down": "vent (rise) or flood (sink) ballast; venting all the way is the fast ascent",
+    "hold left mouse button": "fire the grapple toward the pointer; keep holding to stay tethered, release to let go",
+    "hold E": "cut the nearest salvage piece free while tethered to its wreck",
+    "F": "switch the lamp; the cone lights the wreck and the salvage, and wakes the lures",
+    "P or Escape": "pause",
+    "1 / 2 / 3 or click": "choose a refit after surfacing",
+    "SPACE": "start, restart, resume"
+  },
+  "systems": {
+    "oxygen": "The clock of every dive. Drain is 0.62/s plus 0.0125/s per metre of depth, so the deep tiers cost real air. Surfacing refills the tank.",
+    "ballast": "Ballast runs 0..1 with 0.5 neutral. Buoyancy pushes up when vented and down when flooded, so the ascent speed is the ballast setting, not a fixed rate.",
+    "tether": "The hook flies at 1550 px/s up to 560 px. Once attached, a spring (stiffness 10.5) pulls the diver toward the anchor, the wreck feels 18% of that pull, and a tether stretched 250 px past its rest length snaps.",
+    "salvage": "Four kinds (copper coil, amber glass, silver ingot, trench relic) with own mass and value; each wreck's depth tier scales value x1, x1.3, x1.7, x2.2. Carried pieces slow thrust and add sink, so a rich hold is a slow ascent.",
+    "wrecks": "Each wreck holds 2-4 pieces and 2+tier integrity. Every cut frees a piece and costs integrity; at zero the hull buckles and collapses after 2.1 s, damaging anything inside 190 px and destroying the pieces still attached.",
+    "lures": "Bioluminescent drifters on a deterministic patrol. The lamp wakes one within 380 px and it chases at 122 px/s; with the lamp off it forgets the diver in 2.4 s.",
+    "currents": "Bands every 620 px push the diver and nudge the wrecks, drawn as streaks so they can be read before entering.",
+    "refits": "Seven upgrades offered three at a time after each surfacing: long tank, geared winch, hull plating, amber lens, silent propeller, fast ballast pump, cargo clamps.",
+    "score": "Banked dollars are the score. The best haul is kept in localStorage and shown on the title and end screens."
+  },
+  "loop": [
+    "Title screen: goal, controls, best haul.",
+    "Dive: descend, grapple a wreck, cut salvage free, dodge lures, read the currents, decide when the air budget says surface.",
+    "Surface: cargo is banked, the haul is added to the contract total.",
+    "Refit screen: one of three upgrades, then the next, deeper dive.",
+    "Contract complete at $1,500, or a run over screen on hull breach or an empty tank; SPACE restarts instantly."
+  ],
+  "files": {
+    "game/index.html": "the page: canvas, status line, module entry",
+    "game/src/main.js": "boot, fixed-step loop, screen state machine, audio cues, debug hooks for tests",
+    "game/src/config.js": "every tuning number, palette and player-facing line",
+    "game/src/world.js": "the run: dive state, spawn director, step composition, surfacing, scoring",
+    "game/src/player.js": "bathyscaphe physics: ballast, buoyancy, thrust, drag, oxygen, hull",
+    "game/src/grapple.js": "hook flight, tether spring tension and snap, cut progress",
+    "game/src/wrecks.js": "wreck construction, drift, integrity, collapse",
+    "game/src/hazards.js": "lures and current bands",
+    "game/src/salvage.js": "salvage table, depth-tier value, cargo mass",
+    "game/src/upgrades.js": "the seven refits and the offer roll",
+    "game/src/particles.js": "bubbles, silt, sparks and debris pools",
+    "game/src/render.js": "scene painter: water, depth marks, wrecks, lures, tether, diver, lamp cone",
+    "game/src/hud.js": "HUD: oxygen, hull, depth, cargo, banked, tether tension, timers, prompts",
+    "game/src/screens.js": "overlays: title, pause, refit choice, game over, contract complete",
+    "game/src/shots.js": "deterministic staging for the four screenshot scenes",
+    "game/src/input.js": "keyboard and pointer state, one-shot action flags",
+    "game/src/audio.js": "WebAudio synthesis: no audio files, every cue generated",
+    "game/src/random.js": "seeded mulberry32 generator",
+    "game/src/mathx.js": "clamp, lerp, approach, vectors, angles",
+    "main.ts": "the entrypoint: copies game/ and screenshots/ to /output and writes dossier.json"
+  },
+  "performance": {
+    "step": "fixed 1/60 s; rendering is separate and reads the state",
+    "pools": "particles are fixed-size pools, no per-frame allocation of objects in the hot loop"
+  },
+  "originality": "All names, art, sound and systems are written for this entry: no engine, no library, no sampled audio or borrowed art.",
+  "testing": {
+    "logic": "node test/logic.test.mjs — headless fixed-step tests over oxygen, tether, grapple, cutting, weight, hazards, ascent, score, refits and restart",
+    "browser": "python3 test/browser_test.py — Playwright/Firefox under Xvfb against a local static server: start, move, grapple, cut, take damage, surface, refit, restart, menus, zero page errors",
+    "capture": "python3 tools/capture.py — the four screenshots, from the same static server"
+  }
+}

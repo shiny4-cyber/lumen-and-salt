@@ -1,0 +1,5 @@
+node_modules/
+output/
+/out*/
+.makefun/*.key
+*.log
