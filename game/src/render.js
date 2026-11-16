@@ -159,7 +159,7 @@ export function createRenderer(canvas) {
     // Left wall
     const lx = wallLeft - cam.x;
     if (lx > -160) {
-      ctx.fillStyle = lit('#20383c', 62);
+      ctx.fillStyle = lit('#1b3030', 44);
       ctx.beginPath();
       ctx.moveTo(lx, -40);
       for (let y = -40; y <= VIEW.height + 40; y += 60) {
@@ -176,7 +176,7 @@ export function createRenderer(canvas) {
     // Right wall
     const rx = wallRight - cam.x;
     if (rx < VIEW.width + 160) {
-      ctx.fillStyle = lit('#20383c', 62);
+      ctx.fillStyle = lit('#1b3030', 44);
       ctx.beginPath();
       ctx.moveTo(rx, -40);
       for (let y = -40; y <= VIEW.height + 40; y += 60) {
@@ -193,7 +193,7 @@ export function createRenderer(canvas) {
     // The seabed
     const fy = floor - cam.y;
     if (fy < VIEW.height + 120) {
-      ctx.fillStyle = lit('#24403f', 58);
+      ctx.fillStyle = lit('#1b3030', 40);
       ctx.beginPath();
       ctx.moveTo(-40, fy);
       for (let x = -40; x <= VIEW.width + 40; x += 90) {
@@ -438,6 +438,16 @@ export function createRenderer(canvas) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(wreck.angle * 0.6);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(1, 6, 8, 0.85)';
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      const cont = wreck.hull;
+      ctx.moveTo(cont[0].x, cont[0].y + 5);
+      for (let index = 1; index < cont.length; index += 1) ctx.lineTo(cont[index].x, cont[index].y + 5);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
 
       // The hull silhouette, then its lit edge, then the ribs.
       ctx.beginPath();
@@ -459,6 +469,8 @@ export function createRenderer(canvas) {
       belly.addColorStop(1, 'rgba(2, 12, 16, 0.22)');
       ctx.fillStyle = belly;
       ctx.fillRect(-wreck.half - 10, -wreck.height, wreck.half * 2 + 20, wreck.height * 2);
+      ctx.fillStyle = 'rgba(190, 232, 224, 0.16)';
+      ctx.fillRect(-wreck.half - 10, -wreck.height, wreck.half * 2 + 20, wreck.height * 0.8);
       ctx.restore();
 
       ctx.strokeStyle = 'rgba(168, 224, 216, 0.7)';

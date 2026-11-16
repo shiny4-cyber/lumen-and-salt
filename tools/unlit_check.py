@@ -128,8 +128,11 @@ def measure(label):
         r = obj["r"]
         if cx < -r or cy < -r or cx > 1280 + r or cy > 720 + r:
             continue
-        # Keep clear of the HUD bands, which are bright text over water.
+        # Keep clear of the HUD bands, and of the frame border where the renderer culls
+        # sprites: a culled object would be measured as water against water.
         if cy < 170 or cy > 700:
+            continue
+        if cx < 90 or cx > 1190 or cy < 90 or cy > 630:
             continue
         inside = percentile_luminance(image, cx - r * 0.7, cy - r * 0.7, cx + r * 0.7, cy + r * 0.7, 0.25)
         # Background: the water in the annulus just outside the object (1.25r..1.75r). This is
