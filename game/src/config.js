@@ -151,14 +151,14 @@ export const CURRENT = {
 export const SALVAGE = {
   /** Eight classes: four from the first build, four for the deep water. */
   kinds: [
-    { id: 'coil', label: 'copper coil', value: 19, mass: 1.0, cutTime: 1.35, colour: '#e08b3c', radius: 9 },
-    { id: 'glass', label: 'amber glass', value: 34, mass: 1.4, cutTime: 1.2, colour: '#f2b33d', radius: 10 },
-    { id: 'ingot', label: 'silver ingot', value: 56, mass: 2.2, cutTime: 1.6, colour: '#bfd7e6', radius: 11 },
-    { id: 'relic', label: 'trench relic', value: 108, mass: 2.8, cutTime: 1.9, colour: '#7ef0c8', radius: 12 },
-    { id: 'pearl', label: 'brine pearl', value: 47, mass: 0.7, cutTime: 0.85, colour: '#d9f7ff', radius: 8 },
-    { id: 'bloom', label: 'lumen bloom', value: 65, mass: 0.9, cutTime: 1.05, colour: '#9dff8f', radius: 9 },
-    { id: 'obsidian', label: 'obsidian shard', value: 84, mass: 3.2, cutTime: 2.45, colour: '#7d7fa8', radius: 13 },
-    { id: 'bell', label: 'drowned bell', value: 169, mass: 4.6, cutTime: 3.1, colour: '#ffcf7a', radius: 15 },
+    { id: 'coil', label: 'copper coil', value: 19, mass: 1.0, cutTime: 1.35, colour: '#b7a184', radius: 9 },
+    { id: 'glass', label: 'amber glass', value: 34, mass: 1.4, cutTime: 1.2, colour: '#e3d3a2', radius: 10 },
+    { id: 'ingot', label: 'silver ingot', value: 56, mass: 2.2, cutTime: 1.6, colour: '#c3d7e4', radius: 11 },
+    { id: 'relic', label: 'trench relic', value: 108, mass: 2.8, cutTime: 1.9, colour: '#8fe6cf', radius: 12 },
+    { id: 'pearl', label: 'brine pearl', value: 47, mass: 0.7, cutTime: 0.85, colour: '#dff4ff', radius: 8 },
+    { id: 'bloom', label: 'lumen bloom', value: 65, mass: 0.9, cutTime: 1.05, colour: '#9fe8b6', radius: 9 },
+    { id: 'obsidian', label: 'obsidian shard', value: 84, mass: 3.2, cutTime: 2.45, colour: '#8f93bb', radius: 13 },
+    { id: 'bell', label: 'drowned bell', value: 169, mass: 4.6, cutTime: 3.1, colour: '#e6d7b0', radius: 15 },
   ],
   defaultCutTime: 1.35,
   /** Fallback tables, by depth tier, for a wreck with no band table. */
@@ -182,6 +182,24 @@ export const DIVE = {
   /** Seconds of air warning: the HUD turns amber below this fraction. */
   lowOxygen: 0.25,
   lowHull: 0.3,
+};
+
+/** One colour per meaning, everywhere in the world and the HUD. */
+export const SEMANTIC = {
+  /** Anything the diver acts on: grapple line, target reticle, sonar reveals, contract marks. */
+  objective: '#5ec8ff',
+  /** Anything that hurts right now: live lures, vent blasts, well cores, charge lanes, rings. */
+  hazard: '#ff5240',
+  /** Something that is about to hurt: vent warning, well warning, elite windup, bend alert. */
+  warn: '#ffb060',
+  /** The diver's own gear: lamp, hull rim, HUD accents. */
+  own: '#f6b45a',
+  /** The bright edge every gameplay object carries against the dark water. */
+  rim: '#e8fff8',
+  /** Living threats: a third hue, so a hostile body never reads as a hazard line. */
+  threat: '#ff9ad5',
+  /** Money and value: neutral bright, so profit never borrows the hazard orange. */
+  value: '#f4f7e6',
 };
 
 export const PALETTE = {

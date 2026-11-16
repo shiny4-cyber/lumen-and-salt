@@ -160,6 +160,16 @@ game/src/mathx.js        small maths helpers
 
 MIT — see `LICENSE`.
 
+## Colour is meaning
+
+One hue per meaning, across the world and the HUD: **red** is danger that is happening now (vent
+blast, well core, charge lane, shock ring), **amber** is a telegraph that something is about to
+happen, **magenta** is a living threat's body, **blue** is anything the diver acts on (grapple
+line, sonar reveal, contract progress), and **ivory/steel** is the diver's own gear, money and
+resource meters. Salvage carries its class tint as a filled shape with a dark keyline, so it
+reads by form rather than by glow, and every hull sits on a mid-value body with a bright rim
+above a deliberately darker water band.
+
 ## Loadout, ramp and briefing
 
 Before every dive you fit **two of three tools** — sonar set, power cutter, ballast assist — and

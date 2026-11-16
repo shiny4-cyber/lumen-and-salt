@@ -2,7 +2,7 @@
 // wrecks and their salvage, lures, the tether, the bathyscaphe, particles and the lamp's
 // cone of light. It never changes the simulation — draw(world, view) is the only entry.
 
-import { ELITE, PALETTE, TRENCH, VIEW } from './config.js';
+import { ELITE, PALETTE, SEMANTIC, TRENCH, VIEW } from './config.js';
 import { eliteLane } from './elites.js';
 import { chorusBand } from './chorus.js';
 import { BANDS } from './environment.js';
@@ -91,9 +91,9 @@ export function createRenderer(canvas) {
     if (!gradient) {
       const depth = clamp(bucket / 3200, 0, 1);
       gradient = ctx.createLinearGradient(0, -40, VIEW.width * 0.35, VIEW.height + 40);
-      gradient.addColorStop(0, mix('#12616f', '#0a3140', depth * 0.8));
-      gradient.addColorStop(0.45, mix('#0c4a58', '#062631', depth));
-      gradient.addColorStop(1, mix('#083340', '#04202a', 0.4 + depth * 0.6));
+      gradient.addColorStop(0, mix('#0d4653', '#08222b', depth * 0.85));
+      gradient.addColorStop(0.45, mix('#093a46', '#04171f', depth));
+      gradient.addColorStop(1, mix('#062a34', '#02121a', 0.4 + depth * 0.6));
       GRADIENTS.set(bucket, gradient);
       if (GRADIENTS.size > 40) GRADIENTS.delete(GRADIENTS.keys().next().value);
     }
@@ -109,7 +109,7 @@ export function createRenderer(canvas) {
     // The water itself eats the light: deeper frames sit darker, and the lamp earns its keep.
     const abyss = clamp(bucket / 4200, 0, 1);
     if (abyss > 0.02) {
-      ctx.fillStyle = `rgba(2, 10, 14, ${0.42 * abyss})`;
+      ctx.fillStyle = `rgba(2, 9, 13, ${0.52 * abyss})`;
       ctx.fillRect(0, 0, VIEW.width, VIEW.height);
     }
     // A slow caustic shimmer near the surface, gone by 60 m.
@@ -157,7 +157,7 @@ export function createRenderer(canvas) {
       if (y < -400 || y > VIEW.height + 400) continue;
       const width = 240 + (seed % 260);
       const height = 60 + (seed % 90);
-      ctx.fillStyle = 'rgba(9, 52, 60, 0.7)';
+      ctx.fillStyle = 'rgba(5, 26, 32, 0.85)';
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.quadraticCurveTo(x + width * 0.5, y - height * 0.55, x + width, y);
@@ -165,6 +165,9 @@ export function createRenderer(canvas) {
       ctx.lineTo(x + width * 0.12, y + height * 0.44);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = 'rgba(46, 96, 104, 0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -269,7 +272,7 @@ export function createRenderer(canvas) {
       ctx.save();
       const heat = vent.phase === 'blast' ? 1 : vent.phase === 'warning' ? 0.55 : 0.12;
       const gradient = ctx.createLinearGradient(x, y, x, y - vent.height);
-      gradient.addColorStop(0, `rgba(214, 196, 150, ${0.30 * heat})`);
+      gradient.addColorStop(0, vent.phase === 'blast' ? `rgba(255, 96, 72, ${0.34 * heat})` : `rgba(214, 196, 150, ${0.24 * heat})`);
       gradient.addColorStop(1, 'rgba(180, 214, 200, 0)');
       ctx.fillStyle = gradient;
       ctx.beginPath();
@@ -284,7 +287,7 @@ export function createRenderer(canvas) {
       ctx.beginPath();
       ctx.ellipse(x, y, vent.radius, 12, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = vent.phase === 'warning' ? PALETTE.warn : vent.phase === 'blast' ? PALETTE.bad : 'rgba(120, 170, 168, 0.5)';
+      ctx.strokeStyle = vent.phase === 'warning' ? SEMANTIC.warn : vent.phase === 'blast' ? SEMANTIC.hazard : 'rgba(168, 196, 192, 0.55)';
       ctx.lineWidth = vent.phase === 'idle' ? 1.4 : 2.6;
       ctx.stroke();
       for (let index = 0; index < 7; index += 1) {
@@ -312,7 +315,7 @@ export function createRenderer(canvas) {
       for (let ring = 0; ring < 3; ring += 1) {
         const cycle = pulling ? (world.time * 1.6 + ring / 3) % 1 : (ring + 1) / 4;
         const radius = well.radius * (pulling ? 1 - cycle : cycle);
-        ctx.strokeStyle = pulling ? `rgba(174, 140, 255, ${0.35 * (1 - cycle)})` : `rgba(120, 160, 200, ${warning ? 0.3 : 0.14})`;
+        ctx.strokeStyle = pulling ? `rgba(255, 82, 64, ${0.42 * (1 - cycle)})` : warning ? `rgba(255, 176, 96, ${0.32 * (1 - cycle)})` : `rgba(150, 178, 200, ${0.12 * (1 - cycle)})`;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(x, y, Math.max(6, radius), 0, Math.PI * 2);
@@ -320,13 +323,13 @@ export function createRenderer(canvas) {
       }
       ctx.globalCompositeOperation = 'source-over';
       const core = ctx.createRadialGradient(x, y, 0, x, y, well.core * 2.4);
-      core.addColorStop(0, pulling ? 'rgba(24, 8, 40, 0.95)' : 'rgba(14, 22, 32, 0.8)');
+      core.addColorStop(0, pulling ? 'rgba(34, 6, 6, 0.96)' : 'rgba(6, 14, 18, 0.9)');
       core.addColorStop(1, 'rgba(10, 16, 24, 0)');
       ctx.fillStyle = core;
       ctx.beginPath();
       ctx.arc(x, y, well.core * 2.4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = warning ? PALETTE.warn : pulling ? '#c9a6ff' : 'rgba(140, 170, 210, 0.6)';
+      ctx.strokeStyle = warning ? SEMANTIC.warn : pulling ? SEMANTIC.hazard : 'rgba(160, 190, 210, 0.55)';
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.arc(x, y, well.core, 0, Math.PI * 2);
@@ -377,13 +380,23 @@ export function createRenderer(canvas) {
       ctx.moveTo(hull[0].x, hull[0].y);
       for (let index = 1; index < hull.length; index += 1) ctx.lineTo(hull[index].x, hull[index].y);
       ctx.closePath();
-      ctx.fillStyle = wreck.collapsing ? 'rgba(86, 44, 30, 0.95)' : 'rgba(22, 58, 66, 0.96)';
+      ctx.fillStyle = wreck.collapsing ? 'rgba(96, 40, 26, 0.98)' : 'rgba(58, 100, 110, 0.98)';
       ctx.fill();
-      ctx.strokeStyle = wreck.hitFlash > 0 ? PALETTE.amberHot : 'rgba(150, 206, 206, 0.75)';
-      ctx.lineWidth = 2.4;
+      ctx.strokeStyle = wreck.hitFlash > 0 ? PALETTE.amberHot : 'rgba(214, 246, 238, 0.98)';
+      ctx.lineWidth = 3.6;
       ctx.stroke();
+      // A lit top edge and a shadowed belly: the hull reads by value, not by outline alone.
+      ctx.save();
+      ctx.clip();
+      const belly = ctx.createLinearGradient(0, -wreck.height * 0.6, 0, wreck.height * 0.6);
+      belly.addColorStop(0, 'rgba(150, 210, 205, 0.30)');
+      belly.addColorStop(0.45, 'rgba(20, 44, 50, 0)');
+      belly.addColorStop(1, 'rgba(2, 12, 16, 0.55)');
+      ctx.fillStyle = belly;
+      ctx.fillRect(-wreck.half - 10, -wreck.height, wreck.half * 2 + 20, wreck.height * 2);
+      ctx.restore();
 
-      ctx.strokeStyle = 'rgba(96, 152, 158, 0.6)';
+      ctx.strokeStyle = 'rgba(150, 214, 208, 0.55)';
       ctx.lineWidth = 1.3;
       const span = wreck.half * 1.5;
       for (let index = 1; index < wreck.ribs; index += 1) {
@@ -411,9 +424,21 @@ export function createRenderer(canvas) {
         if (node.free) continue;
         const nx = node.ox;
         const ny = node.oy + Math.sin(world.time * 1.6 + node.wobble) * 2;
-        glowDot(ctx, nx, ny, node.radius + 10, node.colour, 0.85);
+        // A dark plate under the piece, then a bright rim: the silhouette carries it.
+        ctx.fillStyle = 'rgba(2, 9, 12, 0.9)';
+        ctx.beginPath();
+        ctx.arc(nx, ny, node.radius * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        glowDot(ctx, nx, ny, node.radius + 9, node.colour, 0.42);
         ctx.fillStyle = node.colour;
-        drawSalvageShape(ctx, nx, ny, node.radius * 0.8, node.kind);
+        drawSalvageShape(ctx, nx, ny, node.radius * 1.18, node.kind);
+        ctx.strokeStyle = 'rgba(3, 12, 15, 0.95)';
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        ctx.fillStyle = shadeHex(node.colour, 1.25);
+        ctx.beginPath();
+        ctx.arc(nx, ny, Math.max(1.8, node.radius * 0.26), 0, Math.PI * 2);
+        ctx.fill();
         if (node.cut > 0) {
           ctx.strokeStyle = PALETTE.amberHot;
           ctx.lineWidth = 2.4;
@@ -456,9 +481,9 @@ export function createRenderer(canvas) {
       const wake = lure.awake > 0;
       ctx.save();
       ctx.translate(x, y);
-      glowDot(ctx, 0, 0, 46 + pulse * 12, wake ? PALETTE.danger : PALETTE.bio, 0.32);
+      glowDot(ctx, 0, 0, 44 + pulse * 10, wake ? PALETTE.danger : PALETTE.bio, 0.22);
       // Tendrils trail behind the lure, so its direction reads at a glance.
-      ctx.strokeStyle = wake ? 'rgba(255, 140, 110, 0.7)' : 'rgba(111, 240, 208, 0.55)';
+      ctx.strokeStyle = wake ? SEMANTIC.hazard : 'rgba(150, 255, 226, 0.75)';
       ctx.lineWidth = 1.8;
       for (let index = 0; index < 4; index += 1) {
         const phase = lure.pulse * 0.7 + index;
@@ -467,9 +492,32 @@ export function createRenderer(canvas) {
         ctx.quadraticCurveTo(Math.cos(phase) * 10, 16 + index * 5, Math.cos(phase + 1) * 6 - lure.vx * 0.05, 26 + index * 7);
         ctx.stroke();
       }
-      ctx.fillStyle = wake ? '#ff8d6a' : PALETTE.bio;
+      ctx.fillStyle = wake ? '#3a0f0b' : '#06211d';
       ctx.beginPath();
-      ctx.ellipse(0, 0, 12, 9, Math.sin(lure.pulse) * 0.2, 0, Math.PI * 2);
+      ctx.moveTo(16, 0);
+      ctx.quadraticCurveTo(6, -13, -8, -7);
+      ctx.lineTo(-14, -13);
+      ctx.lineTo(-12, -2);
+      ctx.lineTo(-16, 2);
+      ctx.lineTo(-14, 13);
+      ctx.lineTo(-8, 7);
+      ctx.quadraticCurveTo(6, 13, 16, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = wake ? SEMANTIC.threat : '#7dffcf';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      // Two antennae and a tail fan: the silhouette says 'animal' at thumbnail size.
+      ctx.beginPath();
+      ctx.moveTo(12, -4);
+      ctx.quadraticCurveTo(20, -16, 26, -20);
+      ctx.moveTo(12, 4);
+      ctx.quadraticCurveTo(20, 16, 26, 20);
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.fillStyle = wake ? '#ff6b5a' : PALETTE.bio;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 5.4, 4, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#04201f';
       ctx.beginPath();
@@ -492,7 +540,7 @@ export function createRenderer(canvas) {
         const heat = 1 - elite.timer / ELITE.windup;
         ctx.save();
         ctx.globalAlpha = 0.18 + heat * 0.35;
-        ctx.strokeStyle = PALETTE.bad;
+        ctx.strokeStyle = SEMANTIC.hazard;
         ctx.lineWidth = 3 + heat * 5;
         ctx.setLineDash([16, 12]);
         ctx.beginPath();
@@ -501,7 +549,7 @@ export function createRenderer(canvas) {
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.globalAlpha = 0.10 + heat * 0.12;
-        ctx.fillStyle = PALETTE.bad;
+        ctx.fillStyle = SEMANTIC.hazard;
         ctx.beginPath();
         ctx.arc(x, y, elite.radius + 12 + heat * 16, 0, Math.PI * 2);
         ctx.fill();
@@ -511,9 +559,9 @@ export function createRenderer(canvas) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(elite.angle);
-      glowDot(ctx, 0, 0, 58, charge ? PALETTE.danger : '#ffb060', 0.34);
+      glowDot(ctx, 0, 0, 58, charge ? PALETTE.danger : SEMANTIC.threat, 0.3);
       // A long jawed silhouette: the shape reads even at thumbnail size.
-      ctx.fillStyle = charge ? '#ff8a6a' : '#26343c';
+      ctx.fillStyle = charge ? '#4a120c' : '#0b1d23';
       ctx.beginPath();
       ctx.moveTo(-elite.radius * 1.5, 0);
       ctx.quadraticCurveTo(-elite.radius * 0.4, -elite.radius, elite.radius * 1.5, -elite.radius * 0.3);
@@ -521,8 +569,8 @@ export function createRenderer(canvas) {
       ctx.quadraticCurveTo(-elite.radius * 0.4, elite.radius, -elite.radius * 1.5, 0);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = charge ? PALETTE.amberHot : 'rgba(180, 220, 220, 0.55)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = charge ? SEMANTIC.threat : elite.phase === 'windup' ? SEMANTIC.warn : 'rgba(214, 246, 238, 0.9)';
+      ctx.lineWidth = 2.4;
       ctx.stroke();
       // Teeth, so the jaw is legible.
       ctx.fillStyle = 'rgba(240, 245, 235, 0.85)';
@@ -560,17 +608,17 @@ export function createRenderer(canvas) {
       const y = chorus.y - cam.y;
       if (x < -400 || x > VIEW.width + 400 || y < -400 || y > VIEW.height + 400) continue;
       ctx.save();
-      glowDot(ctx, x, y, 70, chorus.phase === 'swell' ? PALETTE.warn : PALETTE.bio, 0.3);
+      glowDot(ctx, x, y, 70, chorus.phase === 'swell' ? SEMANTIC.warn : chorus.phase === 'ring' ? SEMANTIC.hazard : SEMANTIC.threat, 0.28);
       // Bell silhouette, hanging from a short stalk.
-      ctx.fillStyle = '#1b3440';
+      ctx.fillStyle = '#08191f';
       ctx.beginPath();
       ctx.moveTo(x - chorus.radius, y + chorus.radius * 0.9);
       ctx.quadraticCurveTo(x - chorus.radius, y - chorus.radius * 1.3, x, y - chorus.radius * 1.3);
       ctx.quadraticCurveTo(x + chorus.radius, y - chorus.radius * 1.3, x + chorus.radius, y + chorus.radius * 0.9);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = chorus.phase === 'swell' ? PALETTE.warn : 'rgba(180, 220, 220, 0.6)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = chorus.phase === 'swell' ? SEMANTIC.warn : chorus.phase === 'ring' ? SEMANTIC.threat : 'rgba(214, 246, 238, 0.9)';
+      ctx.lineWidth = 2.2;
       ctx.stroke();
       ctx.fillStyle = PALETTE.bioDim;
       ctx.beginPath();
@@ -612,7 +660,7 @@ export function createRenderer(canvas) {
     for (const floater of world.floaters) {
       const life = Math.max(0, floater.life);
       ctx.globalAlpha = Math.min(1, life);
-      ctx.fillStyle = floater.tone === 'bio' ? PALETTE.bio : PALETTE.amberHot;
+      ctx.fillStyle = floater.tone === 'bio' ? PALETTE.bio : SEMANTIC.value;
       ctx.font = floater.tone === 'bio' ? 'bold 14px "Consolas", monospace' : 'bold 18px "Consolas", monospace';
       ctx.fillText(floater.text, floater.x - cam.x, floater.y - cam.y - (1.3 - life) * 34);
     }
@@ -634,7 +682,7 @@ export function createRenderer(canvas) {
       const y0 = top + (from / maxY) * height;
       const y1 = top + (to / maxY) * height;
       ctx.fillStyle = band.palette.accent;
-      ctx.globalAlpha = 0.35;
+      ctx.globalAlpha = index === (world.band ?? 0) ? 0.5 : 0.16;
       ctx.fillRect(x - 4, y0, 8, Math.max(2, y1 - y0));
       ctx.globalAlpha = 1;
       ctx.strokeStyle = 'rgba(200, 235, 230, 0.25)';
@@ -653,7 +701,7 @@ export function createRenderer(canvas) {
       ctx.stroke();
     }
     const markerY = top + Math.min(1, Math.max(0, world.player.y / maxY)) * height;
-    ctx.fillStyle = PALETTE.amberHot;
+    ctx.fillStyle = SEMANTIC.value;
     ctx.beginPath();
     ctx.moveTo(x - 10, markerY);
     ctx.lineTo(x - 16, markerY - 5);
@@ -672,17 +720,17 @@ export function createRenderer(canvas) {
     const x = world.player.x - cam.x;
     const y = world.player.y - cam.y;
     ctx.save();
-    ctx.strokeStyle = `rgba(150, 240, 220, ${0.5 * (1 - age)})`;
+    ctx.strokeStyle = `rgba(94, 200, 255, ${0.55 * (1 - age)})`;
     ctx.lineWidth = 2.4;
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.strokeStyle = `rgba(150, 240, 220, ${0.25 * (1 - age)})`;
+    ctx.strokeStyle = `rgba(94, 200, 255, ${0.28 * (1 - age)})`;
     ctx.beginPath();
     ctx.arc(x, y, radius * 0.66, 0, Math.PI * 2);
     ctx.stroke();
     // Markers: top edges of wrecks, lures and loose pieces inside the ping.
-    ctx.fillStyle = PALETTE.bio;
+    ctx.fillStyle = SEMANTIC.objective;
     for (const wreck of world.wrecks) {
       if (Math.hypot(wreck.x - world.player.x, wreck.y - world.player.y) > sonar.radius) continue;
       const mx = wreck.x - cam.x;
@@ -694,14 +742,14 @@ export function createRenderer(canvas) {
       ctx.closePath();
       ctx.fill();
     }
-    ctx.fillStyle = PALETTE.amber;
+    ctx.fillStyle = SEMANTIC.warn;
     for (const lure of world.lures) {
       if (Math.hypot(lure.x - world.player.x, lure.y - world.player.y) > sonar.radius) continue;
       ctx.beginPath();
       ctx.arc(lure.x - cam.x, lure.y - cam.y, 3, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.fillStyle = PALETTE.danger;
+    ctx.fillStyle = SEMANTIC.hazard;
     for (const elite of world.elites) {
       if (Math.hypot(elite.x - world.player.x, elite.y - world.player.y) > sonar.radius) continue;
       ctx.beginPath();
@@ -761,7 +809,7 @@ export function createRenderer(canvas) {
     const tension = hook.state === 'attached' ? hook.tension : 0;
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.strokeStyle = tension > 0.75 ? 'rgba(255, 170, 120, 0.95)' : 'rgba(230, 235, 220, 0.8)';
+    ctx.strokeStyle = tension > 0.75 ? SEMANTIC.hazard : SEMANTIC.objective;
     ctx.lineWidth = 1.6 + tension * 1.8;
     ctx.beginPath();
     ctx.moveTo(px, py);
@@ -773,12 +821,12 @@ export function createRenderer(canvas) {
       ctx.lineTo(hx, hy);
     }
     ctx.stroke();
-    ctx.fillStyle = PALETTE.amberHot;
+    ctx.fillStyle = SEMANTIC.objective;
     ctx.beginPath();
     ctx.arc(hx, hy, 4 + (hook.state === 'attached' ? 2 : 0), 0, Math.PI * 2);
     ctx.fill();
     if (hook.state === 'attached' && hook.cutProgress > 0) {
-      ctx.strokeStyle = PALETTE.amber;
+      ctx.strokeStyle = SEMANTIC.objective;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(hx, hy, 14, -Math.PI / 2, -Math.PI / 2 + hook.cutProgress * Math.PI * 2);
@@ -808,18 +856,44 @@ export function createRenderer(canvas) {
       ctx.globalAlpha = 1;
     }
 
-    // The hull: a rounded bathysphere body in three tones so it reads in silhouette.
-    ctx.fillStyle = player.hullFlash > 0 ? '#ffb08a' : PALETTE.hull;
+    // The boat: a long hull with a sail, a bow plane and a screw — a vessel, not a disc.
+    ctx.fillStyle = player.hullFlash > 0 ? '#8a3020' : '#29606c';
     ctx.beginPath();
-    ctx.ellipse(0, 0, 21, 16, 0, 0, Math.PI * 2);
+    ctx.moveTo(30, 0);
+    ctx.quadraticCurveTo(20, -11, 2, -12);
+    ctx.lineTo(-20, -9);
+    ctx.quadraticCurveTo(-30, -4, -30, 0);
+    ctx.quadraticCurveTo(-30, 4, -20, 9);
+    ctx.lineTo(2, 12);
+    ctx.quadraticCurveTo(20, 11, 30, 0);
+    ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = PALETTE.hullLight;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = player.hullFlash > 0 ? '#ffb9a0' : SEMANTIC.rim;
+    ctx.lineWidth = 3;
     ctx.stroke();
-    ctx.fillStyle = PALETTE.hullDark;
+    // Sail and periscope mast on top, so the top edge is never a plain curve.
+    ctx.fillStyle = '#14323a';
     ctx.beginPath();
-    ctx.ellipse(-6, 2, 13, 11, 0, 0, Math.PI * 2);
+    ctx.moveTo(-6, -11);
+    ctx.lineTo(-2, -24);
+    ctx.lineTo(6, -24);
+    ctx.lineTo(10, -11);
+    ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = 'rgba(214, 246, 238, 0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    // Bow plane and stern screw.
+    ctx.beginPath();
+    ctx.moveTo(26, -3);
+    ctx.lineTo(36, -9);
+    ctx.moveTo(26, 3);
+    ctx.lineTo(36, 9);
+    ctx.moveTo(-30, 0);
+    ctx.lineTo(-38, -7);
+    ctx.moveTo(-30, 0);
+    ctx.lineTo(-38, 7);
+    ctx.stroke();
 
     // The viewport and the diver's own lamp behind it.
     ctx.fillStyle = 'rgba(255, 214, 150, 0.22)';
@@ -833,7 +907,7 @@ export function createRenderer(canvas) {
     // Lamp housing points where the lamp is aimed.
     ctx.save();
     ctx.rotate(player.aim);
-    ctx.fillStyle = PALETTE.amber;
+    ctx.fillStyle = '#c8d9d2';
     ctx.fillRect(16, -4.5, 12, 9);
     ctx.fillStyle = player.lampOn ? PALETTE.amberHot : 'rgba(120, 130, 130, 0.7)';
     ctx.beginPath();
@@ -853,12 +927,13 @@ export function createRenderer(canvas) {
     ctx.restore();
 
     // A dim halo so the diver is found even with the lamp off.
-    glowDot(ctx, x, y, 42, player.lampOn ? PALETTE.amber : PALETTE.bioDim, 0.18);
+    glowDot(ctx, x, y, 42, player.lampOn ? PALETTE.amber : PALETTE.bioDim, 0.10);
     if (player.mercy > 0) {
-      ctx.strokeStyle = `rgba(255, 214, 150, ${0.25 + 0.35 * Math.sin(world.time * 22)})`;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(255, 214, 150, ${0.45 + 0.35 * Math.sin(world.time * 22)})`;
+      ctx.lineWidth = 2.4;
+      const sweep = world.time * 6;
       ctx.beginPath();
-      ctx.arc(x, y, 26 + Math.sin(world.time * 8) * 2, 0, Math.PI * 2);
+      ctx.arc(x, y, 28, sweep, sweep + Math.PI * 0.5);
       ctx.stroke();
     }
   }
@@ -1056,6 +1131,16 @@ function hexAlpha(hex, alpha) {
   const g = parseInt(value.slice(2, 4), 16);
   const b = parseInt(value.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** Darken a hex colour toward black, for object bodies that must sit under their rim. */
+function shadeHex(hex, factor) {
+  if (!hex.startsWith('#')) return hex;
+  const value = hex.replace('#', '');
+  const r = Math.round(parseInt(value.slice(0, 2), 16) * factor);
+  const g = Math.round(parseInt(value.slice(2, 4), 16) * factor);
+  const b = Math.round(parseInt(value.slice(4, 6), 16) * factor);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 function mix(a, b, t) {

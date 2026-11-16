@@ -1,7 +1,7 @@
 // The HUD: oxygen, depth, cargo value, hull, the run clock and the contract total. It reads
 // the world and paints over the scene; it holds no state of its own beyond animation time.
 
-import { CONTRACT_TARGET, DIVE, PALETTE, PRESSURE, SONAR, VIEW } from './config.js';
+import { CONTRACT_TARGET, DIVE, PALETTE, PRESSURE, SEMANTIC, SONAR, VIEW } from './config.js';
 import { cargoMass, cargoValue } from './salvage.js';
 import { clamp } from './mathx.js';
 
@@ -35,8 +35,8 @@ export function drawHud(ctx, world, view) {
   ctx.textBaseline = 'alphabetic';
 
   // Left: life support and hull.
-  bar(ctx, 26, 44, 218, 13, oxygenFraction, oxygenFraction < DIVE.lowOxygen ? PALETTE.bad : PALETTE.bio, 'OXYGEN', `${Math.ceil(player.oxygen)} s`);
-  bar(ctx, 26, 82, 218, 13, hullFraction, hullFraction < DIVE.lowHull ? PALETTE.bad : PALETTE.amber, 'HULL', `${Math.ceil(player.hull)}%`);
+  bar(ctx, 26, 44, 218, 13, oxygenFraction, oxygenFraction < DIVE.lowOxygen ? PALETTE.bad : '#cfe4e2', 'OXYGEN', `${Math.ceil(player.oxygen)} s`);
+  bar(ctx, 26, 82, 218, 13, hullFraction, hullFraction < DIVE.lowHull ? PALETTE.bad : '#cfe4e2', 'HULL', `${Math.ceil(player.hull)}%`);
 
   // Centre: depth and the run clock.
   ctx.textAlign = 'center';
@@ -58,7 +58,7 @@ export function drawHud(ctx, world, view) {
   ctx.fillStyle = PALETTE.muted;
   ctx.font = '12px "Consolas", monospace';
   ctx.fillText(`CARGO  ${world.cargo.length} piece${world.cargo.length === 1 ? '' : 's'}  ${mass.toFixed(1)} t`, VIEW.width - 26, 38);
-  ctx.fillStyle = PALETTE.amberHot;
+  ctx.fillStyle = SEMANTIC.value;
   ctx.font = 'bold 30px "Consolas", monospace';
   ctx.fillText(`$${cargo}`, VIEW.width - 26, 68);
   ctx.fillStyle = PALETTE.text;
@@ -67,7 +67,7 @@ export function drawHud(ctx, world, view) {
   const toward = clamp(world.banked / CONTRACT_TARGET, 0, 1);
   ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
   ctx.fillRect(VIEW.width - 244, 104, 218, 8);
-  ctx.fillStyle = PALETTE.bio;
+  ctx.fillStyle = SEMANTIC.objective;
   ctx.fillRect(VIEW.width - 243, 105, 216 * toward, 6);
   ctx.fillStyle = PALETTE.muted;
   ctx.font = '11px "Consolas", monospace';
@@ -78,18 +78,18 @@ export function drawHud(ctx, world, view) {
   if (band) {
     const deep = band.id === 'black-shelf';
     ctx.textAlign = 'center';
-    ctx.fillStyle = deep ? PALETTE.bio : PALETTE.muted;
+    ctx.fillStyle = deep ? SEMANTIC.objective : PALETTE.muted;
     ctx.font = 'bold 12px "Consolas", monospace';
     ctx.fillText(band.label, VIEW.width / 2, 136);
     // Combo: the multiplier, and how long it has left before it lapses.
     if (world.combo.count > 1) {
       const left = clamp(world.combo.timer / 7.5, 0, 1);
-      ctx.fillStyle = PALETTE.amberHot;
+      ctx.fillStyle = SEMANTIC.value;
       ctx.font = 'bold 18px "Consolas", monospace';
       ctx.fillText(`COMBO x${world.combo.multiplier.toFixed(2)}`, VIEW.width / 2, 164);
       ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
       ctx.fillRect(VIEW.width / 2 - 70, 172, 140, 6);
-      ctx.fillStyle = PALETTE.amber;
+      ctx.fillStyle = SEMANTIC.value;
       ctx.fillRect(VIEW.width / 2 - 69, 173, 138 * left, 4);
     }
   }
@@ -101,12 +101,12 @@ export function drawHud(ctx, world, view) {
   ctx.fillText('YARD CONTRACTS', 26, 206);
   world.contracts.forEach((contract, index) => {
     const y = 224 + index * 20;
-    ctx.fillStyle = contract.done ? PALETTE.bio : PALETTE.text;
+    ctx.fillStyle = contract.done ? SEMANTIC.value : PALETTE.text;
     ctx.font = contract.done ? 'bold 12px "Consolas", monospace' : '12px "Consolas", monospace';
     const value = contract.unit === 'x' ? contract.progress.toFixed(2) : Math.round(contract.progress);
     const goal = contract.unit === 'x' ? contract.goal.toFixed(2) : Math.round(contract.goal);
     ctx.fillText(`${contract.done ? '✓' : '·'} ${contract.title}  ${value}/${goal}${contract.unit}`, 26, y);
-    ctx.fillStyle = contract.done ? PALETTE.bioDim : PALETTE.muted;
+    ctx.fillStyle = contract.done ? SEMANTIC.value : PALETTE.muted;
     ctx.textAlign = 'right';
     ctx.fillText(`$${contract.reward}`, 244, y);
     ctx.textAlign = 'left';
@@ -115,11 +115,11 @@ export function drawHud(ctx, world, view) {
   // Sonar: ready or cooling, always visible so the ability is not a secret.
   const sonar = world.sonar;
   ctx.font = '12px "Consolas", monospace';
-  ctx.fillStyle = sonar.active > 0 ? PALETTE.bio : sonar.cooldown > 0 ? PALETTE.muted : PALETTE.amber;
+  ctx.fillStyle = sonar.active > 0 ? SEMANTIC.objective : sonar.cooldown > 0 ? PALETTE.muted : '#cfe4e2';
   ctx.fillText(sonar.active > 0 ? 'SONAR  pinging' : sonar.cooldown > 0 ? `SONAR  ${sonar.cooldown.toFixed(1)} s` : 'SONAR  Q ready', 26, VIEW.height - 48);
   ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
   ctx.fillRect(26, VIEW.height - 42, 140, 6);
-  ctx.fillStyle = sonar.cooldown > 0 ? PALETTE.muted : PALETTE.amber;
+  ctx.fillStyle = sonar.cooldown > 0 ? PALETTE.muted : SEMANTIC.objective;
   ctx.fillRect(27, VIEW.height - 41, 138 * (1 - Math.min(1, sonar.cooldown / SONAR.cooldown)), 4);
 
   // Ascent pressure: the safe rate, the current rate, and a bend warning.
@@ -131,11 +131,11 @@ export function drawHud(ctx, world, view) {
   ctx.fillText(`ASCENT ${Math.round(rise)} px/s   safe ${PRESSURE.safeRate}`, VIEW.width - 26, 152);
   ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
   ctx.fillRect(VIEW.width - 244, 158, 218, 9);
-  ctx.fillStyle = rise > PRESSURE.safeRate ? PALETTE.bad : PALETTE.bio;
+  ctx.fillStyle = rise > PRESSURE.safeRate ? PALETTE.bad : '#cfe4e2';
   ctx.fillRect(VIEW.width - 243, 159, 216 * ascentFraction, 7);
   ctx.fillStyle = PALETTE.muted;
   ctx.fillRect(VIEW.width - 243 + 216 * (PRESSURE.safeRate / (PRESSURE.safeRate * 1.7)) - 1, 156, 2, 13);
-  ctx.fillStyle = player.bending ? PALETTE.bad : rise > PRESSURE.safeRate ? PALETTE.warn : PALETTE.bio;
+  ctx.fillStyle = player.bending ? PALETTE.bad : rise > PRESSURE.safeRate ? PALETTE.warn : '#cfe4e2';
   ctx.font = 'bold 11px "Consolas", monospace';
   ctx.fillText(player.bending ? 'BEND — ease off' : rise > PRESSURE.safeRate ? 'FAST ASCENT' : 'SAFE', VIEW.width - 26, 182);
   ctx.textAlign = 'left';
@@ -150,10 +150,10 @@ export function drawHud(ctx, world, view) {
     ctx.fillText('TETHER', 26, 128);
     ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
     ctx.fillRect(26, 134, 140, 8);
-    ctx.fillStyle = tension > 0.8 ? PALETTE.bad : tension > 0.5 ? PALETTE.warn : PALETTE.bio;
+    ctx.fillStyle = tension > 0.8 ? PALETTE.bad : tension > 0.5 ? PALETTE.warn : '#cfe4e2';
     ctx.fillRect(27, 135, 138 * tension, 6);
     if (hook.cutNode) {
-      ctx.fillStyle = PALETTE.amberHot;
+      ctx.fillStyle = SEMANTIC.objective;
       ctx.fillText(`cutting ${Math.round(hook.cutProgress * 100)}%`, 26, 160);
     }
   }
@@ -175,7 +175,7 @@ export function drawHud(ctx, world, view) {
   // Lamp state and mute in the corner.
   ctx.textAlign = 'left';
   ctx.font = '12px "Consolas", monospace';
-  ctx.fillStyle = player.lampOn ? PALETTE.amber : PALETTE.muted;
+  ctx.fillStyle = player.lampOn ? '#e9f3ee' : PALETTE.muted;
   ctx.fillText(player.lampOn ? 'LAMP ON  ·  lures can see it' : 'LAMP OFF  ·  the dark hides you', 26, VIEW.height - 24);
   ctx.fillStyle = PALETTE.muted;
   ctx.textAlign = 'left';
