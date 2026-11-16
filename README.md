@@ -160,6 +160,15 @@ game/src/mathx.js        small maths helpers
 
 MIT — see `LICENSE`.
 
+## Unlit legibility
+
+Every gameplay body keeps a value floor (`lit()` in `game/src/render.js`): the wreck hulls,
+terrain walls and seabed, creatures, vents and wells are raised to a minimum luminance and
+given a bright rim, and the band tint and vignette are painted *before* the objects so screen
+position no longer darkens them. `tools/unlit_check.py` captures the `?shot=unlit` frame,
+reads object footprints from the page, and prints the luminance delta between each silhouette
+and the water around it; the worst case must clear 10/255.
+
 ## Colour is meaning
 
 One hue per meaning, across the world and the HUD: **red** is danger that is happening now (vent

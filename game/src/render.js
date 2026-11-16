@@ -62,6 +62,9 @@ export function createRenderer(canvas) {
     drawCurrents(world, cam);
     drawFarSilt(world, cam);
     drawSilt(world, cam);
+    drawTerrain(world, cam);
+    drawEnvironmentTint(world);
+    drawVignette(world);
     drawWrecks(world, cam);
     drawCache(world, cam);
     drawVents(world, cam);
@@ -76,8 +79,6 @@ export function createRenderer(canvas) {
     drawPlayer(world, cam);
     drawParticles(world, cam);
     drawLamp(world, cam);
-    drawEnvironmentTint(world);
-    drawVignette(world);
     drawDepthGauge(world);
     drawBandTransition(world);
     ctx.restore();
@@ -143,6 +144,70 @@ export function createRenderer(canvas) {
       ctx.stroke();
       ctx.fillText(`${Math.round(Math.max(0, y) / TRENCH.pxPerMetre)} m`, 8, sy - 6);
     }
+  }
+
+  /**
+   * The trench itself: the two walls and the floor are the surfaces the diver actually
+   * collides with (player.js clamps at the same numbers), so they get the same treatment as
+   * every other solid: a lit body and a rim that reads with the lamp off.
+   */
+  function drawTerrain(world, cam) {
+    const wallLeft = 25;
+    const wallRight = TRENCH.width - 25;
+    const floor = TRENCH.floorY - 25;
+    ctx.save();
+    // Left wall
+    const lx = wallLeft - cam.x;
+    if (lx > -160) {
+      ctx.fillStyle = lit('#20383c', 62);
+      ctx.beginPath();
+      ctx.moveTo(lx, -40);
+      for (let y = -40; y <= VIEW.height + 40; y += 60) {
+        ctx.lineTo(lx - 12 + Math.sin((y + cam.y) * 0.012) * 14, y);
+      }
+      ctx.lineTo(lx - 200, VIEW.height + 40);
+      ctx.lineTo(lx - 200, -40);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(206, 240, 232, 0.85)';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+    }
+    // Right wall
+    const rx = wallRight - cam.x;
+    if (rx < VIEW.width + 160) {
+      ctx.fillStyle = lit('#20383c', 62);
+      ctx.beginPath();
+      ctx.moveTo(rx, -40);
+      for (let y = -40; y <= VIEW.height + 40; y += 60) {
+        ctx.lineTo(rx + 12 + Math.sin((y + cam.y) * 0.011 + 2) * 14, y);
+      }
+      ctx.lineTo(rx + 200, VIEW.height + 40);
+      ctx.lineTo(rx + 200, -40);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(206, 240, 232, 0.85)';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+    }
+    // The seabed
+    const fy = floor - cam.y;
+    if (fy < VIEW.height + 120) {
+      ctx.fillStyle = lit('#24403f', 58);
+      ctx.beginPath();
+      ctx.moveTo(-40, fy);
+      for (let x = -40; x <= VIEW.width + 40; x += 90) {
+        ctx.lineTo(x, fy + Math.sin((x + cam.x) * 0.008) * 16);
+      }
+      ctx.lineTo(VIEW.width + 40, VIEW.height + 120);
+      ctx.lineTo(-40, VIEW.height + 120);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(206, 240, 232, 0.8)';
+      ctx.lineWidth = 2.6;
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /** Far-off hull silhouettes, so the water is never an empty screen. */
@@ -283,7 +348,7 @@ export function createRenderer(canvas) {
       ctx.closePath();
       ctx.fill();
       // The mouth of the vent reads as rock, not water: a dark ellipse with a rim.
-      ctx.fillStyle = 'rgba(9, 26, 30, 0.95)';
+      ctx.fillStyle = lit('rgba(26, 52, 56, 0.96)', 52);
       ctx.beginPath();
       ctx.ellipse(x, y, vent.radius, 12, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -323,7 +388,7 @@ export function createRenderer(canvas) {
       }
       ctx.globalCompositeOperation = 'source-over';
       const core = ctx.createRadialGradient(x, y, 0, x, y, well.core * 2.4);
-      core.addColorStop(0, pulling ? 'rgba(34, 6, 6, 0.96)' : 'rgba(6, 14, 18, 0.9)');
+      core.addColorStop(0, pulling ? lit('rgba(46, 14, 12, 0.96)', 46) : lit('rgba(14, 30, 34, 0.9)', 44));
       core.addColorStop(1, 'rgba(10, 16, 24, 0)');
       ctx.fillStyle = core;
       ctx.beginPath();
@@ -380,7 +445,7 @@ export function createRenderer(canvas) {
       ctx.moveTo(hull[0].x, hull[0].y);
       for (let index = 1; index < hull.length; index += 1) ctx.lineTo(hull[index].x, hull[index].y);
       ctx.closePath();
-      ctx.fillStyle = wreck.collapsing ? 'rgba(96, 40, 26, 0.98)' : 'rgba(58, 100, 110, 0.98)';
+      ctx.fillStyle = wreck.collapsing ? lit('#60281a', 78) : lit('#3a646e', 74);
       ctx.fill();
       ctx.strokeStyle = wreck.hitFlash > 0 ? PALETTE.amberHot : 'rgba(214, 246, 238, 0.98)';
       ctx.lineWidth = 3.6;
@@ -389,15 +454,15 @@ export function createRenderer(canvas) {
       ctx.save();
       ctx.clip();
       const belly = ctx.createLinearGradient(0, -wreck.height * 0.6, 0, wreck.height * 0.6);
-      belly.addColorStop(0, 'rgba(150, 210, 205, 0.30)');
+      belly.addColorStop(0, 'rgba(170, 220, 214, 0.26)');
       belly.addColorStop(0.45, 'rgba(20, 44, 50, 0)');
-      belly.addColorStop(1, 'rgba(2, 12, 16, 0.55)');
+      belly.addColorStop(1, 'rgba(2, 12, 16, 0.22)');
       ctx.fillStyle = belly;
       ctx.fillRect(-wreck.half - 10, -wreck.height, wreck.half * 2 + 20, wreck.height * 2);
       ctx.restore();
 
-      ctx.strokeStyle = 'rgba(150, 214, 208, 0.55)';
-      ctx.lineWidth = 1.3;
+      ctx.strokeStyle = 'rgba(168, 224, 216, 0.7)';
+      ctx.lineWidth = 1.4;
       const span = wreck.half * 1.5;
       for (let index = 1; index < wreck.ribs; index += 1) {
         const t = index / wreck.ribs;
@@ -481,7 +546,7 @@ export function createRenderer(canvas) {
       const wake = lure.awake > 0;
       ctx.save();
       ctx.translate(x, y);
-      glowDot(ctx, 0, 0, 44 + pulse * 10, wake ? PALETTE.danger : PALETTE.bio, 0.22);
+      glowDot(ctx, 0, 0, 30 + pulse * 6, wake ? PALETTE.danger : PALETTE.bio, 0.08);
       // Tendrils trail behind the lure, so its direction reads at a glance.
       ctx.strokeStyle = wake ? SEMANTIC.hazard : 'rgba(150, 255, 226, 0.75)';
       ctx.lineWidth = 1.8;
@@ -492,7 +557,7 @@ export function createRenderer(canvas) {
         ctx.quadraticCurveTo(Math.cos(phase) * 10, 16 + index * 5, Math.cos(phase + 1) * 6 - lure.vx * 0.05, 26 + index * 7);
         ctx.stroke();
       }
-      ctx.fillStyle = wake ? '#3a0f0b' : '#06211d';
+      ctx.fillStyle = wake ? lit('#5c1a12', 96) : lit('#0d3a33', 104);
       ctx.beginPath();
       ctx.moveTo(16, 0);
       ctx.quadraticCurveTo(6, -13, -8, -7);
@@ -507,6 +572,11 @@ export function createRenderer(canvas) {
       ctx.strokeStyle = wake ? SEMANTIC.threat : '#7dffcf';
       ctx.lineWidth = 2.4;
       ctx.stroke();
+      // A lit core even with the lamp off: the body never collapses to a dark shape.
+      ctx.fillStyle = wake ? lit('#ffb3a6', 150) : lit('#8ef0d4', 150);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 5, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
       // Two antennae and a tail fan: the silhouette says 'animal' at thumbnail size.
       ctx.beginPath();
       ctx.moveTo(12, -4);
@@ -559,9 +629,9 @@ export function createRenderer(canvas) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(elite.angle);
-      glowDot(ctx, 0, 0, 58, charge ? PALETTE.danger : SEMANTIC.threat, 0.3);
+      glowDot(ctx, 0, 0, 58, charge ? PALETTE.danger : SEMANTIC.threat, 0.14);
       // A long jawed silhouette: the shape reads even at thumbnail size.
-      ctx.fillStyle = charge ? '#4a120c' : '#0b1d23';
+      ctx.fillStyle = charge ? lit('#4a120c', 70) : lit('#0b1d23', 64);
       ctx.beginPath();
       ctx.moveTo(-elite.radius * 1.5, 0);
       ctx.quadraticCurveTo(-elite.radius * 0.4, -elite.radius, elite.radius * 1.5, -elite.radius * 0.3);
@@ -608,9 +678,9 @@ export function createRenderer(canvas) {
       const y = chorus.y - cam.y;
       if (x < -400 || x > VIEW.width + 400 || y < -400 || y > VIEW.height + 400) continue;
       ctx.save();
-      glowDot(ctx, x, y, 70, chorus.phase === 'swell' ? SEMANTIC.warn : chorus.phase === 'ring' ? SEMANTIC.hazard : SEMANTIC.threat, 0.28);
+      glowDot(ctx, x, y, 70, chorus.phase === 'swell' ? SEMANTIC.warn : chorus.phase === 'ring' ? SEMANTIC.hazard : SEMANTIC.threat, 0.14);
       // Bell silhouette, hanging from a short stalk.
-      ctx.fillStyle = '#08191f';
+      ctx.fillStyle = lit('#08191f', 62);
       ctx.beginPath();
       ctx.moveTo(x - chorus.radius, y + chorus.radius * 0.9);
       ctx.quadraticCurveTo(x - chorus.radius, y - chorus.radius * 1.3, x, y - chorus.radius * 1.3);
@@ -857,7 +927,7 @@ export function createRenderer(canvas) {
     }
 
     // The boat: a long hull with a sail, a bow plane and a screw — a vessel, not a disc.
-    ctx.fillStyle = player.hullFlash > 0 ? '#8a3020' : '#29606c';
+    ctx.fillStyle = player.hullFlash > 0 ? lit('#8a3020', 84) : lit('#29606c', 82);
     ctx.beginPath();
     ctx.moveTo(30, 0);
     ctx.quadraticCurveTo(20, -11, 2, -12);
@@ -927,7 +997,7 @@ export function createRenderer(canvas) {
     ctx.restore();
 
     // A dim halo so the diver is found even with the lamp off.
-    glowDot(ctx, x, y, 42, player.lampOn ? PALETTE.amber : PALETTE.bioDim, 0.10);
+    glowDot(ctx, x, y, 40, player.lampOn ? PALETTE.amber : PALETTE.bioDim, 0.05);
     if (player.mercy > 0) {
       ctx.strokeStyle = `rgba(255, 214, 150, ${0.45 + 0.35 * Math.sin(world.time * 22)})`;
       ctx.lineWidth = 2.4;
@@ -1131,6 +1201,38 @@ function hexAlpha(hex, alpha) {
   const g = parseInt(value.slice(2, 4), 16);
   const b = parseInt(value.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Raise a colour to a minimum luminance (0..255), keeping its hue. This is the value floor:
+ * an object body must stay a clear step above the water even with the lamp off.
+ */
+function lit(colour, minimum) {
+  let r;
+  let g;
+  let b;
+  if (colour.charAt(0) === '#') {
+    const value = colour.slice(1);
+    r = parseInt(value.slice(0, 2), 16);
+    g = parseInt(value.slice(2, 4), 16);
+    b = parseInt(value.slice(4, 6), 16);
+  } else {
+    // rgb()/rgba(): read the three channel numbers between the brackets, no regex.
+    const open = colour.indexOf('(');
+    const close = colour.indexOf(')');
+    if (open < 0 || close < 0) return colour;
+    const parts = colour.slice(open + 1, close).split(',');
+    r = parseFloat(parts[0]);
+    g = parseFloat(parts[1]);
+    b = parseFloat(parts[2]);
+  }
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return colour;
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  if (luminance >= minimum) return colour;
+  const k = minimum / Math.max(1, luminance);
+  const clamp255 = (value) => Math.min(255, Math.round(value * k));
+  const alpha = colour.startsWith('rgba') ? colour.slice(colour.lastIndexOf(',') + 1).trim().replace(')', '') : '1';
+  return `rgba(${clamp255(r)}, ${clamp255(g)}, ${clamp255(b)}, ${alpha})`;
 }
 
 /** Darken a hex colour toward black, for object bodies that must sit under their rim. */

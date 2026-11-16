@@ -42,6 +42,21 @@ function attachTo(world, wreck, anchorIndex) {
  * values the overlay screens read. Any unknown name falls back to the cover.
  */
 export function stageShot(name, world) {
+  if (name === 'unlit') {
+    // The luminance probe: the cover scene with the headlight off. Everything is unlit here,
+    // which is exactly the case the separation check is about.
+    const scene = stageShot('cover', world);
+    world.player.lampOn = false;
+    world.sonar.active = 0;
+    // Extra unlit objects at the frame edges and near the vignette, where separation is worst.
+    world.spawnWreckAt(150, 4560, 3);
+    world.spawnWreckAt(1430, 4800, 3);
+    world.spawnWreckAt(760, 5230, 2);
+    world.spawnChorusAt(180, 4880);
+    world.spawnLureAt(1330, 4500).awake = 0;
+    world.spawnEliteAt(1470, 5060);
+    return { ...scene, screen: SCREEN_PLAY };
+  }
   world.reset(20261116);
   const player = world.player;
 

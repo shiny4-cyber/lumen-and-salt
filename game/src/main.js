@@ -61,6 +61,21 @@ function readMuted() {
   }
 }
 
+/** Object footprints in screen space, for the unlit luminance check. */
+function collectPatches(camera) {
+  const objects = [];
+  for (const wreck of world.wrecks) {
+    if (wreck.dead) continue;
+    objects.push({ id: `wreck-${wreck.id}`, x: wreck.x, y: wreck.y, r: Math.min(wreck.half * 0.8, wreck.height * 0.55) });
+  }
+  for (const chorus of world.choruses) objects.push({ id: 'chorus', x: chorus.x, y: chorus.y, r: chorus.radius * 1.4 });
+  for (const elite of world.elites) objects.push({ id: 'elite', x: elite.x, y: elite.y, r: elite.radius * 1.3 });
+  for (const lure of world.lures) objects.push({ id: 'lure', x: lure.x, y: lure.y, r: lure.radius * 1.6 });
+  for (const vent of world.vents) objects.push({ id: 'vent', x: vent.x, y: vent.y, r: vent.radius * 0.5 });
+  objects.push({ id: 'player', x: world.player.x, y: world.player.y, r: world.player.radius * 2.6 });
+  return { camera, objects };
+}
+
 /** Paint one frame: the scene, the HUD on a dive, then the screen's own overlay. */
 function paint(view) {
   renderer.draw(world, { camera: view.camera });
@@ -78,6 +93,7 @@ function runShot(name) {
   const scene = stageShot(name, world);
   const view = { screen: scene.screen === SCREEN_OVER ? SCREEN_OVER : scene.screen, camera: scene.camera, time: world.time, best: scene.best, reason: scene.reason, muted: true, newBest: scene.newBest ?? false };
   audio.setMuted(true);
+  window.__shotPatches = () => collectPatches(scene.camera);
   let painted = 0;
   function paintShot() {
     paint(view);
@@ -482,6 +498,7 @@ function runGame() {
       if (!node) return null;
       return { x: wreck.x + node.ox, y: wreck.y + node.oy, wreckX: wreck.x, wreckY: wreck.y };
     },
+    patches: () => collectPatches({ x: cameraX, y: cameraY }),
     /** Sampled canvas colours, so a test can prove the frame was actually painted. */
     samplePixels: (grid = 8) => {
       const out = [];
