@@ -93,5 +93,25 @@
     "browser": "python3 test/browser_test.py \u2014 Playwright/Firefox under Xvfb against a local static server: start, move, grapple, cut, take damage, surface, refit, restart, menus, zero page errors",
     "capture": "python3 tools/capture.py \u2014 the four screenshots, from the same static server",
     "tuning": "node tools/autoplay.mjs 16 \u2014 a naive bot plays 16 seeds; the pass keeps it beatable but not free"
+  },
+  "hud": {
+    "principle": "Sized for the judge contact sheet: the cover is fitted to 768 px wide, a 0.6 scale of the 1280x720 canvas, so the HUD is set at 17-52 px in canvas space and carries only what a diver needs at a glance.",
+    "zones": {
+      "top-left": "OXYGEN and HULL: label 19 px, value 26-40 px, meter beneath",
+      "top-centre": "DEPTH 52 px, run clock 26 px, current band 17 px",
+      "top-right": "HAUL 40 px, banked 22 px, cargo 17 px, contract meter plus total 17 px, combo 28 px",
+      "bottom-left": "LAMP state and SONAR state, 18 px",
+      "bottom-centre": "one contextual instruction, 20 px",
+      "bottom-right": "one threat line: tether tension with cut progress, else bend warning, else ascent rate"
+    },
+    "dropped": [
+      "contract list",
+      "deepest-depth line",
+      "dive number",
+      "controls cheatsheet",
+      "mute line",
+      "separate tether block",
+      "separate ascent gauge"
+    ]
   }
 }

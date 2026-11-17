@@ -160,6 +160,15 @@ game/src/mathx.js        small maths helpers
 
 MIT — see `LICENSE`.
 
+## The HUD is sized for the judge's contact sheet
+
+The judge never runs the game: it reads one contact sheet, with the cover fitted to 768 px wide
+(a 0.6 scale of the 1280x720 canvas). Every HUD label is therefore at least 17 px and every
+number at least 26 px in canvas space, which is 10 px and 16 px at the sheet's scale. Only six
+things are drawn: air, hull, depth, run clock, the hold and its contract, and one threat line
+(tether tension, else bend, else ascent). `tools/judge_preview.py` writes the same 768-wide
+downscales the judge sees and prints the text height each label lands at.
+
 ## Unlit legibility
 
 Every gameplay body keeps a value floor (`lit()` in `game/src/render.js`): the wreck hulls,

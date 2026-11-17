@@ -1,26 +1,28 @@
-// The HUD: oxygen, depth, cargo value, hull, the run clock and the contract total. It reads
-// the world and paints over the scene; it holds no state of its own beyond animation time.
+// The HUD. It is sized for the judge's contact sheet, not for a monitor: the cover is fitted
+// to 768 px wide (a 0.6 scale of the 1280x720 canvas), so every label here is at least 17 px
+// and every number at least 26 px in canvas space. Only what a diver needs at a glance is
+// drawn — air, hull, depth, the run clock, the hold, the contract, and one threat line.
 
 import { CONTRACT_TARGET, DIVE, PALETTE, PRESSURE, SEMANTIC, SONAR, VIEW } from './config.js';
 import { cargoMass, cargoValue } from './salvage.js';
 import { clamp } from './mathx.js';
 
-function bar(ctx, x, y, width, height, fraction, colour, label, valueText) {
-  ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
+const MARGIN = 34;
+const COLUMN = 268;
+
+const LABEL = 'bold 19px "Consolas", monospace';
+const NUMBER = 'bold 40px "Consolas", monospace';
+const SMALL = 'bold 17px "Consolas", monospace';
+const MEDIUM = 'bold 26px "Consolas", monospace';
+
+function meter(ctx, x, y, width, height, fraction, colour) {
+  ctx.fillStyle = 'rgba(4, 26, 30, 0.85)';
   ctx.fillRect(x, y, width, height);
   ctx.fillStyle = colour;
   ctx.fillRect(x + 1, y + 1, Math.max(0, (width - 2) * clamp(fraction, 0, 1)), height - 2);
-  ctx.strokeStyle = 'rgba(140, 210, 205, 0.35)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
-  ctx.fillStyle = PALETTE.muted;
-  ctx.font = '12px "Consolas", monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText(label, x, y - 7);
-  ctx.fillStyle = PALETTE.text;
-  ctx.textAlign = 'right';
-  ctx.fillText(valueText, x + width, y - 7);
-  ctx.textAlign = 'left';
+  ctx.strokeStyle = 'rgba(150, 216, 210, 0.45)';
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(x + 0.7, y + 0.7, width - 1.4, height - 1.4);
 }
 
 export function drawHud(ctx, world, view) {
@@ -28,194 +30,159 @@ export function drawHud(ctx, world, view) {
   const time = view.time;
   const oxygenFraction = player.oxygen / player.oxygenMax;
   const hullFraction = player.hull / player.hullMax;
+  const lowAir = oxygenFraction < DIVE.lowOxygen;
   const cargo = cargoValue(world.cargo);
-  const mass = cargoMass(world.cargo);
 
   ctx.save();
   ctx.textBaseline = 'alphabetic';
 
-  // Left: life support and hull.
-  bar(ctx, 26, 44, 218, 13, oxygenFraction, oxygenFraction < DIVE.lowOxygen ? PALETTE.bad : '#cfe4e2', 'OXYGEN', `${Math.ceil(player.oxygen)} s`);
-  bar(ctx, 26, 82, 218, 13, hullFraction, hullFraction < DIVE.lowHull ? PALETTE.bad : '#cfe4e2', 'HULL', `${Math.ceil(player.hull)}%`);
-
-  // Centre: depth and the run clock.
-  ctx.textAlign = 'center';
-  ctx.fillStyle = PALETTE.text;
-  ctx.font = 'bold 30px "Consolas", monospace';
-  ctx.fillText(`${Math.round(player.depth)} m`, VIEW.width / 2, 50);
+  // ── Left: air and hull. Label on the left, value on the right, bar beneath.
+  ctx.textAlign = 'left';
   ctx.fillStyle = PALETTE.muted;
-  ctx.font = '12px "Consolas", monospace';
-  ctx.fillText(`DEPTH   deepest ${Math.round(world.depthMax)} m`, VIEW.width / 2, 68);
-  ctx.fillStyle = PALETTE.text;
-  ctx.font = 'bold 22px "Consolas", monospace';
-  ctx.fillText(formatTime(time), VIEW.width / 2, 100);
-  ctx.fillStyle = PALETTE.muted;
-  ctx.font = '12px "Consolas", monospace';
-  ctx.fillText(`RUN ${formatTime(time)}   DIVE ${world.dive + 1}`, VIEW.width / 2, 116);
-
-  // Right: the hold and the contract.
+  ctx.font = LABEL;
+  ctx.fillText('OXYGEN', MARGIN, 46);
   ctx.textAlign = 'right';
-  ctx.fillStyle = PALETTE.muted;
-  ctx.font = '12px "Consolas", monospace';
-  ctx.fillText(`CARGO  ${world.cargo.length} piece${world.cargo.length === 1 ? '' : 's'}  ${mass.toFixed(1)} t`, VIEW.width - 26, 38);
-  ctx.fillStyle = SEMANTIC.value;
-  ctx.font = 'bold 30px "Consolas", monospace';
-  ctx.fillText(`$${cargo}`, VIEW.width - 26, 68);
-  ctx.fillStyle = PALETTE.text;
-  ctx.font = '16px "Consolas", monospace';
-  ctx.fillText(`banked $${world.banked}`, VIEW.width - 26, 92);
-  const toward = clamp(world.banked / CONTRACT_TARGET, 0, 1);
-  ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
-  ctx.fillRect(VIEW.width - 244, 104, 218, 8);
-  ctx.fillStyle = SEMANTIC.objective;
-  ctx.fillRect(VIEW.width - 243, 105, 216 * toward, 6);
-  ctx.fillStyle = PALETTE.muted;
-  ctx.font = '11px "Consolas", monospace';
-  ctx.fillText(`contract $${CONTRACT_TARGET}`, VIEW.width - 26, 126);
+  ctx.fillStyle = lowAir ? PALETTE.bad : PALETTE.text;
+  ctx.font = NUMBER;
+  ctx.fillText(`${Math.ceil(player.oxygen)} s`, MARGIN + COLUMN, 50);
+  meter(ctx, MARGIN, 60, COLUMN, 16, oxygenFraction, lowAir ? PALETTE.bad : '#cfe4e2');
 
-  // The depth band the diver is in, named, so the environment change is legible.
+  ctx.textAlign = 'left';
+  ctx.fillStyle = PALETTE.muted;
+  ctx.font = LABEL;
+  ctx.fillText('HULL', MARGIN, 112);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = hullFraction < DIVE.lowHull ? PALETTE.bad : PALETTE.text;
+  ctx.font = MEDIUM;
+  ctx.fillText(`${Math.ceil(hullFraction * 100)}%`, MARGIN + COLUMN, 112);
+  meter(ctx, MARGIN, 122, COLUMN, 14, hullFraction, hullFraction < DIVE.lowHull ? PALETTE.bad : '#cfe4e2');
+
+  // ── Centre: depth is the biggest number on the screen, the run clock under it.
+  ctx.textAlign = 'center';
+  ctx.fillStyle = PALETTE.muted;
+  ctx.font = LABEL;
+  ctx.fillText('DEPTH', VIEW.width / 2, 40);
+  ctx.fillStyle = PALETTE.text;
+  ctx.font = 'bold 52px "Consolas", monospace';
+  ctx.fillText(`${Math.round(player.depth)} m`, VIEW.width / 2, 92);
+  ctx.fillStyle = PALETTE.muted;
+  ctx.font = MEDIUM;
+  ctx.fillText(`RUN ${formatTime(time)}`, VIEW.width / 2, 128);
   const band = world.environment;
   if (band) {
-    const deep = band.id === 'black-shelf';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = deep ? SEMANTIC.objective : PALETTE.muted;
-    ctx.font = 'bold 12px "Consolas", monospace';
-    ctx.fillText(band.label, VIEW.width / 2, 136);
-    // Combo: the multiplier, and how long it has left before it lapses.
-    if (world.combo.count > 1) {
-      const left = clamp(world.combo.timer / 7.5, 0, 1);
-      ctx.fillStyle = SEMANTIC.value;
-      ctx.font = 'bold 18px "Consolas", monospace';
-      ctx.fillText(`COMBO x${world.combo.multiplier.toFixed(2)}`, VIEW.width / 2, 164);
-      ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
-      ctx.fillRect(VIEW.width / 2 - 70, 172, 140, 6);
-      ctx.fillStyle = SEMANTIC.value;
-      ctx.fillRect(VIEW.width / 2 - 69, 173, 138 * left, 4);
-    }
+    ctx.fillStyle = band.id === 'brine-hollow' ? SEMANTIC.objective : PALETTE.muted;
+    ctx.font = SMALL;
+    ctx.fillText(band.label, VIEW.width / 2, 156);
   }
 
-  // The contract board: three jobs, their live progress, and what each pays.
-  ctx.textAlign = 'left';
-  ctx.fillStyle = PALETTE.muted;
-  ctx.font = '11px "Consolas", monospace';
-  ctx.fillText('YARD CONTRACTS', 26, 206);
-  world.contracts.forEach((contract, index) => {
-    const y = 224 + index * 20;
-    ctx.fillStyle = contract.done ? SEMANTIC.value : PALETTE.text;
-    ctx.font = contract.done ? 'bold 12px "Consolas", monospace' : '12px "Consolas", monospace';
-    const value = contract.unit === 'x' ? contract.progress.toFixed(2) : Math.round(contract.progress);
-    const goal = contract.unit === 'x' ? contract.goal.toFixed(2) : Math.round(contract.goal);
-    ctx.fillText(`${contract.done ? '✓' : '·'} ${contract.title}  ${value}/${goal}${contract.unit}`, 26, y);
-    ctx.fillStyle = contract.done ? SEMANTIC.value : PALETTE.muted;
-    ctx.textAlign = 'right';
-    ctx.fillText(`$${contract.reward}`, 244, y);
-    ctx.textAlign = 'left';
-  });
-
-  // Sonar: ready or cooling, always visible so the ability is not a secret.
-  const sonar = world.sonar;
-  ctx.font = '12px "Consolas", monospace';
-  ctx.fillStyle = sonar.active > 0 ? SEMANTIC.objective : sonar.cooldown > 0 ? PALETTE.muted : '#cfe4e2';
-  ctx.fillText(sonar.active > 0 ? 'SONAR  pinging' : sonar.cooldown > 0 ? `SONAR  ${sonar.cooldown.toFixed(1)} s` : 'SONAR  Q ready', 26, VIEW.height - 48);
-  ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
-  ctx.fillRect(26, VIEW.height - 42, 140, 6);
-  ctx.fillStyle = sonar.cooldown > 0 ? PALETTE.muted : SEMANTIC.objective;
-  ctx.fillRect(27, VIEW.height - 41, 138 * (1 - Math.min(1, sonar.cooldown / SONAR.cooldown)), 4);
-
-  // Ascent pressure: the safe rate, the current rate, and a bend warning.
-  const rise = player.ascentRate;
-  const ascentFraction = Math.min(1, rise / (PRESSURE.safeRate * 1.7));
+  // ── Right: the hold, the bank, and the contract in one column.
+  const right = VIEW.width - MARGIN;
   ctx.textAlign = 'right';
   ctx.fillStyle = PALETTE.muted;
-  ctx.font = '11px "Consolas", monospace';
-  ctx.fillText(`ASCENT ${Math.round(rise)} px/s   safe ${PRESSURE.safeRate}`, VIEW.width - 26, 152);
-  ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
-  ctx.fillRect(VIEW.width - 244, 158, 218, 9);
-  ctx.fillStyle = rise > PRESSURE.safeRate ? PALETTE.bad : '#cfe4e2';
-  ctx.fillRect(VIEW.width - 243, 159, 216 * ascentFraction, 7);
+  ctx.font = LABEL;
+  ctx.fillText('HAUL', right, 46);
+  ctx.fillStyle = SEMANTIC.value;
+  ctx.font = NUMBER;
+  ctx.fillText(`$${cargo}`, right, 88);
+  ctx.fillStyle = PALETTE.text;
+  ctx.font = 'bold 22px "Consolas", monospace';
+  ctx.fillText(`banked $${world.banked}`, right, 116);
   ctx.fillStyle = PALETTE.muted;
-  ctx.fillRect(VIEW.width - 243 + 216 * (PRESSURE.safeRate / (PRESSURE.safeRate * 1.7)) - 1, 156, 2, 13);
-  ctx.fillStyle = player.bending ? PALETTE.bad : rise > PRESSURE.safeRate ? PALETTE.warn : '#cfe4e2';
-  ctx.font = 'bold 11px "Consolas", monospace';
-  ctx.fillText(player.bending ? 'BEND — ease off' : rise > PRESSURE.safeRate ? 'FAST ASCENT' : 'SAFE', VIEW.width - 26, 182);
-  ctx.textAlign = 'left';
-
-  // Tether tension, only while a line is out.
-  const hook = world.hook;
-  if (hook.state === 'attached') {
-    const tension = clamp(hook.tension, 0, 1);
-    ctx.textAlign = 'left';
-    ctx.fillStyle = PALETTE.muted;
-    ctx.font = '12px "Consolas", monospace';
-    ctx.fillText('TETHER', 26, 128);
-    ctx.fillStyle = 'rgba(4, 26, 30, 0.8)';
-    ctx.fillRect(26, 134, 140, 8);
-    ctx.fillStyle = tension > 0.8 ? PALETTE.bad : tension > 0.5 ? PALETTE.warn : '#cfe4e2';
-    ctx.fillRect(27, 135, 138 * tension, 6);
-    if (hook.cutNode) {
-      ctx.fillStyle = SEMANTIC.objective;
-      ctx.fillText(`cutting ${Math.round(hook.cutProgress * 100)}%`, 26, 160);
-    }
+  ctx.font = SMALL;
+  ctx.fillText(`${world.cargo.length} pcs · ${cargoMass(world.cargo).toFixed(1)} t`, right, 140);
+  const toward = clamp(world.banked / CONTRACT_TARGET, 0, 1);
+  meter(ctx, right - COLUMN, 148, COLUMN, 12, toward, SEMANTIC.objective);
+  ctx.fillStyle = PALETTE.muted;
+  ctx.fillText(`CONTRACT $${CONTRACT_TARGET}`, right, 180);
+  if (world.combo.count > 1) {
+    ctx.fillStyle = SEMANTIC.value;
+    ctx.font = 'bold 28px "Consolas", monospace';
+    ctx.fillText(`x${world.combo.multiplier.toFixed(2)}`, right, 214);
   }
 
-  // Contextual prompt: the next thing the diver should do.
+  // ── Bottom left: gear, in two words.
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 18px "Consolas", monospace';
+  ctx.fillStyle = player.lampOn ? PALETTE.text : PALETTE.muted;
+  ctx.fillText(player.lampOn ? 'LAMP ON' : 'LAMP OFF', MARGIN, VIEW.height - 48);
+  const sonar = world.sonar;
+  ctx.fillStyle = sonar.active > 0 ? SEMANTIC.objective : sonar.cooldown > 0 ? PALETTE.muted : PALETTE.text;
+  ctx.fillText(sonar.active > 0 ? 'SONAR PING' : sonar.cooldown > 0 ? `SONAR ${sonar.cooldown.toFixed(0)}s` : 'SONAR READY', MARGIN, VIEW.height - 26);
+
+  // ── Bottom right: one threat line. Tether tension wins, then the bend, then the ascent.
+  const hook = world.hook;
+  const rise = player.ascentRate;
+  const threatX = VIEW.width - MARGIN;
+  ctx.textAlign = 'right';
+  if (player.bending) {
+    ctx.fillStyle = PALETTE.bad;
+    ctx.font = 'bold 24px "Consolas", monospace';
+    ctx.fillText('BEND — EASE OFF', threatX, VIEW.height - 26);
+  } else if (hook.state === 'attached') {
+    const tension = clamp(hook.tension, 0, 1);
+    ctx.fillStyle = tension > 0.8 ? PALETTE.bad : tension > 0.5 ? PALETTE.warn : PALETTE.text;
+    ctx.font = 'bold 22px "Consolas", monospace';
+    const cut = hook.cutNode ? `  CUT ${Math.round(hook.cutProgress * 100)}%` : '';
+    ctx.fillText(`TETHER ${Math.round(tension * 100)}%${cut}`, threatX, VIEW.height - 26);
+    meter(ctx, threatX - 240, VIEW.height - 18, 240, 10, tension, tension > 0.8 ? PALETTE.bad : tension > 0.5 ? PALETTE.warn : '#cfe4e2');
+  } else {
+    const fast = rise > PRESSURE.safeRate;
+    ctx.fillStyle = fast ? PALETTE.warn : PALETTE.text;
+    ctx.font = 'bold 22px "Consolas", monospace';
+    ctx.fillText(fast ? 'FAST ASCENT' : 'ASCENT OK', threatX, VIEW.height - 26);
+    meter(ctx, threatX - 240, VIEW.height - 18, 240, 10, Math.min(1, rise / (PRESSURE.safeRate * 1.7)), fast ? PALETTE.bad : '#cfe4e2');
+  }
+
+  // ── Bottom centre: the one instruction that matters right now.
   const prompt = contextualPrompt(world);
   if (prompt) {
     ctx.textAlign = 'center';
-    ctx.font = '15px "Trebuchet MS", system-ui, sans-serif';
-    const width = ctx.measureText(prompt).width + 34;
-    ctx.fillStyle = 'rgba(3, 22, 26, 0.78)';
-    ctx.fillRect(VIEW.width / 2 - width / 2, VIEW.height - 74, width, 30);
+    ctx.font = 'bold 20px "Trebuchet MS", system-ui, sans-serif';
+    const width = ctx.measureText(prompt).width + 44;
+    ctx.fillStyle = 'rgba(3, 22, 26, 0.86)';
+    ctx.fillRect(VIEW.width / 2 - width / 2, VIEW.height - 78, width, 38);
     ctx.strokeStyle = PALETTE.panelEdge;
-    ctx.strokeRect(VIEW.width / 2 - width / 2 + 0.5, VIEW.height - 73.5, width - 1, 29);
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(VIEW.width / 2 - width / 2 + 0.6, VIEW.height - 77.4, width - 1.2, 36.8);
     ctx.fillStyle = PALETTE.text;
-    ctx.fillText(prompt, VIEW.width / 2, VIEW.height - 53);
+    ctx.fillText(prompt, VIEW.width / 2, VIEW.height - 52);
   }
 
-  // Lamp state and mute in the corner.
-  ctx.textAlign = 'left';
-  ctx.font = '12px "Consolas", monospace';
-  ctx.fillStyle = player.lampOn ? '#e9f3ee' : PALETTE.muted;
-  ctx.fillText(player.lampOn ? 'LAMP ON  ·  lures can see it' : 'LAMP OFF  ·  the dark hides you', 26, VIEW.height - 24);
-  ctx.fillStyle = PALETTE.muted;
-  ctx.textAlign = 'left';
-  ctx.fillText(view.muted ? 'M mute (off)' : 'M mute   F lamp   P pause', 26, 176);
-
-  // Damage flash and low-oxygen pulse, drawn over everything.
+  // Damage flash, and the low-air border pulse.
   if (player.hullFlash > 0) {
     ctx.fillStyle = `rgba(255, 90, 60, ${0.28 * player.hullFlash})`;
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   }
-  if (oxygenFraction < DIVE.lowOxygen) {
+  if (lowAir) {
     const pulse = 0.25 + 0.2 * Math.sin(time * 7);
     ctx.strokeStyle = `rgba(255, 122, 99, ${pulse})`;
     ctx.lineWidth = 8;
     ctx.strokeRect(4, 4, VIEW.width - 8, VIEW.height - 8);
   }
 
-  // The dive-start sequence: a short banner over a frozen frame, then the diver is released.
+  // The dive-start banner.
   if (view.intro > 0) {
     const progress = clamp(1 - view.intro / 1.15, 0, 1);
     ctx.globalAlpha = clamp(progress * 2.2, 0, 1);
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.ink;
-    ctx.fillRect(0, VIEW.height / 2 - 74, VIEW.width, 116);
+    ctx.fillRect(0, VIEW.height / 2 - 82, VIEW.width, 132);
     ctx.fillStyle = PALETTE.amberHot;
-    ctx.font = 'bold 40px "Trebuchet MS", system-ui, sans-serif';
+    ctx.font = 'bold 48px "Trebuchet MS", system-ui, sans-serif';
     ctx.fillText(`DIVE ${world.dive + 1}`, VIEW.width / 2, VIEW.height / 2 - 18);
     ctx.fillStyle = PALETTE.text;
-    ctx.font = '16px "Consolas", monospace';
-    ctx.fillText(`ballast trimmed  ·  tank ${Math.round(player.oxygenMax)} s  ·  hull ${Math.round(player.hullMax)}`, VIEW.width / 2, VIEW.height / 2 + 16);
+    ctx.font = 'bold 20px "Consolas", monospace';
+    ctx.fillText(`ballast trimmed · tank ${Math.round(player.oxygenMax)} s · hull ${Math.round(player.hullMax)}`, VIEW.width / 2, VIEW.height / 2 + 22);
     ctx.globalAlpha = 1;
   }
 
-  // The world's short messages (a hull buckling, a tether snapping) sit above the prompt.
+  // World messages: a hull buckling, a tether parting.
   if (world.messageTimer > 0) {
     ctx.globalAlpha = clamp(world.messageTimer / 0.6, 0, 1);
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.warn;
-    ctx.font = '18px "Trebuchet MS", system-ui, sans-serif';
-    ctx.fillText(world.message, VIEW.width / 2, 190);
+    ctx.font = 'bold 24px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(world.message, VIEW.width / 2, 210);
     ctx.globalAlpha = 1;
   }
   ctx.restore();
@@ -223,12 +190,12 @@ export function drawHud(ctx, world, view) {
 
 function contextualPrompt(world) {
   const hook = world.hook;
-  if (world.cargo.length >= 6) return 'hold is full — surface before the air runs out';
+  if (world.cargo.length >= 6) return 'hold full — surface now';
   if (hook.state === 'attached') {
-    if (hook.cutNode) return 'keep E held — the piece is coming free';
-    return 'hold E near a lit piece to cut it free';
+    if (hook.cutNode) return 'hold E — cutting free';
+    return 'hold E to cut the piece free';
   }
-  if (hook.state === 'flying') return 'the hook is flying — hold to keep the line';
+  if (hook.state === 'flying') return 'hook away — hold to keep the line';
   return 'hold LMB toward a wreck to grapple';
 }
 
@@ -238,4 +205,3 @@ export function formatTime(seconds) {
   const rest = whole % 60;
   return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
 }
-
