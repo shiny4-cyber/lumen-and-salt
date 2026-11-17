@@ -34,43 +34,63 @@ function centred(ctx, text, x, y, font, colour, alpha = 1) {
 }
 
 export function drawTitle(ctx, world, view) {
-  // Darken the live scene behind the title, then lay the wordmark over it.
-  ctx.fillStyle = 'rgba(2, 14, 18, 0.42)';
-  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+  // The title is a live frame: the renderer has already drawn the trench, the diver holding
+  // station and its sweeping lamp. A scrim over the left half carries the type and leaves the
+  // right half to the scene, so the card sells the dive instead of describing it.
+  const scrim = ctx.createLinearGradient(0, 0, 700, 0);
+  scrim.addColorStop(0, 'rgba(2, 12, 16, 0.94)');
+  scrim.addColorStop(0.62, 'rgba(2, 12, 16, 0.82)');
+  scrim.addColorStop(1, 'rgba(2, 12, 16, 0)');
+  ctx.fillStyle = scrim;
+  ctx.fillRect(0, 0, 700, VIEW.height);
+  const floor = ctx.createLinearGradient(0, VIEW.height - 150, 0, VIEW.height);
+  floor.addColorStop(0, 'rgba(2, 12, 16, 0)');
+  floor.addColorStop(1, 'rgba(2, 12, 16, 0.72)');
+  ctx.fillStyle = floor;
+  ctx.fillRect(0, VIEW.height - 150, VIEW.width, 150);
 
-  const glow = ctx.createRadialGradient(VIEW.width / 2, 196, 30, VIEW.width / 2, 220, 420);
-  glow.addColorStop(0, 'rgba(255, 196, 120, 0.20)');
-  glow.addColorStop(1, 'rgba(255, 176, 96, 0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, VIEW.width, 480);
+  const left = 96;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = PALETTE.amberHot;
+  ctx.font = 'bold 88px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(TEXT.title, left, 214);
 
-  centred(ctx, TEXT.title, VIEW.width / 2, 208, 'bold 76px "Trebuchet MS", system-ui, sans-serif', PALETTE.amberHot);
-  centred(ctx, TEXT.subtitle, VIEW.width / 2, 244, '26px "Trebuchet MS", system-ui, sans-serif', PALETTE.muted);
-  ctx.strokeStyle = 'rgba(246, 180, 90, 0.5)';
-  ctx.lineWidth = 1;
+  ctx.fillStyle = PALETTE.muted;
+  ctx.font = '26px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(TEXT.subtitle, left, 256);
+
+  ctx.strokeStyle = 'rgba(246, 180, 90, 0.55)';
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.moveTo(VIEW.width / 2 - 250, 266);
-  ctx.lineTo(VIEW.width / 2 + 250, 266);
+  ctx.moveTo(left, 284);
+  ctx.lineTo(left + 430, 284);
   ctx.stroke();
 
-  panel(ctx, VIEW.width / 2 - 300, 300, 600, 208, 0.72);
-  ctx.textAlign = 'left';
   ctx.fillStyle = PALETTE.text;
-  ctx.font = '22px "Trebuchet MS", system-ui, sans-serif';
+  ctx.font = 'bold 22px "Consolas", monospace';
   TEXT.controls.forEach((line, index) => {
-    ctx.fillText(line, VIEW.width / 2 - 272, 334 + index * 27);
+    ctx.fillText(line, left, 330 + index * 38);
   });
+
   ctx.fillStyle = PALETTE.amber;
-  ctx.font = 'bold 21px "Consolas", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(TEXT.contract, VIEW.width / 2, 486);
+  ctx.font = 'bold 22px "Consolas", monospace';
+  ctx.fillText(TEXT.contract, left, 330 + TEXT.controls.length * 38 + 14);
 
   const pulse = 0.55 + 0.45 * Math.sin(view.time * 3.4);
-  centred(ctx, TEXT.start, VIEW.width / 2, 566, 'bold 31px "Trebuchet MS", system-ui, sans-serif', PALETTE.text, 0.5 + pulse * 0.5);
+  ctx.globalAlpha = 0.55 + pulse * 0.45;
+  ctx.fillStyle = PALETTE.text;
+  ctx.font = 'bold 30px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(TEXT.start, left, VIEW.height - 96);
+  ctx.globalAlpha = 1;
   if (view.best > 0) {
-    centred(ctx, `best haul  $${view.best}`, VIEW.width / 2, 606, '21px "Consolas", monospace', PALETTE.bio);
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = 'bold 20px "Consolas", monospace';
+    ctx.fillText(`best haul  $${view.best}`, left, VIEW.height - 62);
   }
-  centred(ctx, 'made for make.fun best-game-01 — original art, sound and code', VIEW.width / 2, VIEW.height - 30, '17px "Consolas", monospace', 'rgba(143, 179, 176, 0.6)');
+
+  ctx.fillStyle = 'rgba(180, 210, 206, 0.72)';
+  ctx.font = 'bold 18px "Consolas", monospace';
+  ctx.fillText('made for make.fun best-game-01 · original art, sound and code', left, VIEW.height - 28);
 }
 
 export function drawBriefing(ctx, world, view) {

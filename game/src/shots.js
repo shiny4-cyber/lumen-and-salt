@@ -61,19 +61,21 @@ export function stageShot(name, world) {
   const player = world.player;
 
   if (name === 'title') {
-    // A quiet deep backdrop behind the title: wrecks and lures drifting, no diver on screen.
+    // The title is a live scene, not a card: the diver holds station in the right half with the
+    // lamp on, a wreck hangs a little above and beyond, and the water keeps drifting.
     world.wrecks = [];
     world.lures = [];
-    world.spawnWreckAt(420, 1460, 2);
-    world.spawnWreckAt(1170, 1980, 1);
-    world.spawnLureAt(760, 1560);
-    world.spawnLureAt(1080, 1720);
-    place(world, 1800, 2200, 1600, 2100);
-    world.toggleLamp();
-    for (let index = 0; index < 180; index += 1) world.particles.step(1 / 60, 700, 1500, 60);
+    const wreck = world.spawnWreckAt(1310, 1400, 2);
+    world.spawnWreckAt(1620, 1900, 1);
+    world.spawnLureAt(1180, 1760).awake = 0;
+    place(world, 1035, 1492, 1310, 1400);
+    if (!world.player.lampOn) world.toggleLamp();
+    for (let index = 0; index < 180; index += 1) world.particles.step(1 / 60, 900, 1480, 60);
     world.player.oxygen = world.player.oxygenMax * 0.72;
     world.player.hull = 84;
-    return { screen: SCREEN_TITLE, camera: { x: 260, y: 1180 }, best: 470, reason: null };
+    world.hook.state = 'idle';
+    wreck.collapseTimer = 999;
+    return { screen: SCREEN_TITLE, camera: { x: 130, y: 1150 }, best: 470, reason: null };
   }
 
   if (name === 'over') {

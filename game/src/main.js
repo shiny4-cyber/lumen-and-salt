@@ -265,6 +265,10 @@ function runGame() {
     uiTime += dt;
     if (screen === SCREEN_TITLE) {
       world.idle(dt);
+      // The title lamp stays on and sweeps across the wreck. It is a pure function of the UI
+      // clock: no random draws, no simulation state, so a dive started from here is unaffected.
+      world.player.lampOn = true;
+      world.player.aim = -0.1 + Math.sin(uiTime * 0.42) * 0.26;
       return;
     }
     if (screen !== SCREEN_PLAY) return;
@@ -456,6 +460,21 @@ function runGame() {
       best,
       offers: world.offers.map((offer) => offer.id),
     }),
+    bench: (frames = 180) => {
+      const view = {
+        screen,
+        camera: screen === SCREEN_TITLE ? renderer.camera(world) : camera,
+        time: screen === SCREEN_TITLE ? uiTime : world.time,
+        best,
+        reason: deathReason,
+        muted,
+        newBest,
+        intro: introTimer,
+      };
+      const start = performance.now();
+      for (let index = 0; index < frames; index += 1) paint(view);
+      return (performance.now() - start) / frames;
+    },
     advance: (seconds) => {
       handleActions(input.takeActions());
       const steps = Math.max(1, Math.round(seconds / STEP));
